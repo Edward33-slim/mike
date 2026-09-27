@@ -1973,14 +1973,31 @@ class BrowserActivity : Activity() {
 
     // 7) ترجمة إلى العربية
     private fun runTranslate() {
-        if (currentTab().isHome) {
+        val tab = currentTab()
+        if (tab.isHome) {
             Toast.makeText(this, "لا توجد صفحة لترجمتها", Toast.LENGTH_SHORT).show()
             return
         }
-        Toast.makeText(this, "جاري ترجمة الصفحة...", Toast.LENGTH_SHORT).show()
-        PageTranslator.translatePage(currentWebView(), "ar") { success, message ->
-            if (!isFinishing) {
-                Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+
+        // Translation remains enabled for this tab; every new page is translated automatically.
+        tab.translationEnabled = true
+        tab.lastTranslatedUrl = ""
+        tab.translationInProgress = false
+        Toast.makeText(this, "جاري ترجمة الموقع إلى العربية...", Toast.LENGTH_SHORT).show()
+        translateTabPageIfNeeded(tab.webView, tab)
+    }
+
+    private fun translateTabPageIfNeeded(webView: WebView, tab: Tab) {
+        if (!tab.translationEnabled || tab.translationInProgress) return
+        val url = webView.url?.takeIf { it.startsWith("http://") || it.startsWith("https://") } ?: return
+        if (url == tab.lastTranslatedUrl) return
+
+        tab.translationInProgress = true
+        PageTranslator.translatePage(webView, "ar") { success, message ->
+            tab.translationInProgress = false
+            if (success) tab.lastTranslatedUrl = url
+            if (isActiveTab(webView) && !isFinishing) {
+                Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
             }
         }
     }
