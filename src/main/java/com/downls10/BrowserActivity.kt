@@ -122,6 +122,7 @@ class BrowserActivity : Activity() {
 
         CookieManager.getInstance().setAcceptCookie(true)
         DownloadsRepository.ensureLoaded(this)
+        AdBlocker.cleanupRemovedLists(this)
         hideMedia = settingsPrefs().getBoolean("hideMedia", false)
         nightMode = settingsPrefs().getBoolean("nightMode", false)
 
@@ -529,7 +530,12 @@ class BrowserActivity : Activity() {
 
         val grid = GridLayout(this).apply {
             columnCount = columns
+            alignmentMode = GridLayout.ALIGN_BOUNDS
             setPadding(horizontalPadding, 48, horizontalPadding, 48)
+            layoutParams = ScrollView.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
         }
 
         val items = SpeedDialStorage.getItems(this)
@@ -592,17 +598,21 @@ class BrowserActivity : Activity() {
             }
         }
         val icon = ImageView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(iconSize, iconSize)
+            layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
+                gravity = Gravity.CENTER_HORIZONTAL
+            }
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
             setBackgroundColor(Color.parseColor("#222222"))
         }
         loadFaviconInto(icon, item.url)
 
         val label = TextView(this).apply {
             text = title
-            setTextColor(visitedSiteColor(item.url, Color.parseColor("#00FFFF")))
+            setTextColor(Color.parseColor("#808080"))
             textSize = 12f
             gravity = Gravity.CENTER
             maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
         container.addView(icon)
         container.addView(label)
@@ -1021,8 +1031,8 @@ class BrowserActivity : Activity() {
         return VisitedSites.isVisited(this, host)
     }
 
-    private fun visitedSiteColor(url: String?, unvisitedColor: Int = Color.parseColor("#00FFFF")): Int {
-        return if (isVisitedSite(url)) Color.parseColor("#B388FF") else unvisitedColor
+    private fun visitedSiteColor(url: String?, unvisitedColor: Int = Color.parseColor("#808080")): Int {
+        return Color.parseColor("#808080")
     }
 
     private fun recordVisitedNavigation(url: String?) {

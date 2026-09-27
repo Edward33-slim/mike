@@ -37,7 +37,6 @@ object AdBlocker {
         BlockListDef("stevenblack", "StevenBlack", "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts", ListFormat.HOSTS, ListCategory.AD),
         BlockListDef("ubo_resource_abuse", "uBlock Origin - Resource Abuse", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/resource-abuse.txt", ListFormat.ABP, ListCategory.AD),
         BlockListDef("ubo_unbreak", "uBlock Origin - Unbreak", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/unbreak.txt", ListFormat.ABP, ListCategory.AD),
-        BlockListDef("adguard_base", "AdGuard Base Filter", "https://filters.adtidy.org/extension/chromium/filters/2.txt", ListFormat.ABP, ListCategory.AD),
         BlockListDef("pgl", "PGL (Peter Lowe)", "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext", ListFormat.HOSTS, ListCategory.AD),
         BlockListDef("nocoin", "NoCoin", "https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt", ListFormat.HOSTS, ListCategory.AD),
         BlockListDef(
@@ -45,12 +44,6 @@ object AdBlocker {
             "https://raw.githubusercontent.com/AdguardTeam/cname-trackers/master/data/combined_disguised_trackers_justdomains.txt",
             ListFormat.DOMAIN_PLAIN, ListCategory.AD,
             fallbackUrl = "https://cdn.jsdelivr.net/gh/AdguardTeam/cname-trackers@master/data/combined_disguised_trackers_justdomains.txt"
-        ),
-        BlockListDef(
-            "nextdns_cname", "NextDNS - حجب تمويه الطرف الأول",
-            "https://raw.githubusercontent.com/nextdns/cname-cloaking-blocklist/master/domains",
-            ListFormat.DOMAIN_PLAIN, ListCategory.AD,
-            fallbackUrl = "https://cdn.jsdelivr.net/gh/nextdns/cname-cloaking-blocklist@master/domains"
         ),
         BlockListDef(
             "frogeye_firstparty", "Frogeye - تتبعات الطرف الأول",
@@ -62,6 +55,20 @@ object AdBlocker {
         BlockListDef("phishing", "تصيّد احتيالي (OpenPhish)", "https://openphish.com/feed.txt", ListFormat.URL_LIST, ListCategory.PHISHING),
         BlockListDef("risk", "مواقع مشبوهة (Risk)", "https://raw.githubusercontent.com/FadeMind/hosts.extras/master/add.Risk/hosts", ListFormat.HOSTS, ListCategory.RISK)
     )
+
+    private val REMOVED_LIST_IDS = arrayOf("adguard_base", "nextdns_cname")
+
+    /** يحذف نهائياً بيانات القوائم التي أزيلت من التطبيق حتى لا تبقى في التخزين المحلي. */
+    fun cleanupRemovedLists(context: Context) {
+        val editor = prefs(context).edit()
+        REMOVED_LIST_IDS.forEach { id ->
+            editor.remove("enabled_$id")
+                .remove("updated_$id")
+                .remove("domains_$id")
+            cache.remove(id)
+        }
+        editor.apply()
+    }
 
     private const val PREFS = "adblock_prefs"
     private val executor = Executors.newFixedThreadPool(3)
