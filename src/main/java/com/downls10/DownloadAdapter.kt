@@ -62,6 +62,21 @@ class DownloadAdapter(
             DownloadState.ERROR -> btnPauseResume.text = "إعادة"
         }
 
+        // تنفيذ اللمسة مباشرة على ACTION_UP حتى لا تضيع بسبب تحديث ListView المتكرر.
+        btnPauseResume.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> true
+                android.view.MotionEvent.ACTION_UP -> {
+                    v.performClick()
+                    true
+                }
+                android.view.MotionEvent.ACTION_CANCEL -> {
+                    v.performClick()
+                    true
+                }
+                else -> true
+            }
+        }
         btnPauseResume.setOnClickListener { onPauseResumeClick(item) }
         btnDelete.setOnClickListener { onDeleteClick(item) }
 
