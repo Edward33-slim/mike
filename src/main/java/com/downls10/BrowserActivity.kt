@@ -46,6 +46,8 @@ import android.widget.Toast
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
+import java.util.Locale
+import org.json.JSONObject
 import kotlin.math.abs
 
 private data class Tab(
@@ -1363,9 +1365,79 @@ class BrowserActivity : Activity() {
      * غير المزار = سماوي، والمزار = بنفسجي ثابت ومحفوظ.
      */
     private fun applyVisitedLinksJs(webView: WebView) {
-        // نتائج البحث تعرض ألوان الموقع/محرك البحث الأصلية دون أي تلوين من DownLS10.
-        // ألوان المواقع التي تمت زيارتها في واجهة التطبيق محفوظة بشكل مستقل ولا تتأثر بهذا.
-        return
+        val currentUrl = webView.url ?: return
+        val currentHost = try { Uri.parse(currentUrl).host?.lowercase(Locale.US)?.removePrefix("www.") } catch (_: Exception) { null }
+        if (currentHost.isNullOrBlank()) return
+
+        // لا نلمس ألوان صفحات نتائج البحث إطلاقاً؛ تبقى ألوان محرك البحث الأصلية.
+        val isSearchPage = currentHost.contains("google.") ||
+            currentHost == "google.com" ||
+            currentHost.contains("bing.") ||
+            currentHost.contains("yahoo.") ||
+            currentHost.contains("duckduckgo.")
+        if (isSearchPage) return
+
+        val visitedJson = VisitedSites.asJsonForInjection(this)
+        val js = """
+            (function() {
+                var visited = $visitedJson;
+                var STYLE_ID = '__downls10_visited_gray__';
+
+                function normalizeHost(host) {
+                    return String(host || '').toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+                }
+
+                function isVisitedHost(host) {
+                    return !!visited[normalizeHost(host)];
+                }
+
+                function scan() {
+                    var links = document.querySelectorAll('a[href]');
+                    for (var i = 0; i < links.length; i++) {
+                        var a = links[i];
+                        var href = a.href || '';
+                        if (!/^https?:\/\//i.test(href)) continue;
+
+                        var host = '';
+                        try { host = normalizeHost(new URL(href).hostname); } catch (_) { continue; }
+
+                        if (isVisitedHost(host)) {
+                            a.setAttribute('data-downls10-visited', '1');
+                        } else {
+                            a.removeAttribute('data-downls10-visited');
+                        }
+                    }
+                }
+
+                var oldStyle = document.getElementById(STYLE_ID);
+                if (!oldStyle) {
+                    var style = document.createElement('style');
+                    style.id = STYLE_ID;
+                    style.textContent =
+                        'a[data-downls10-visited="1"],' +
+                        'a[data-downls10-visited="1"] * {' +
+                        'color:#808080 !important;' +
+                        '-webkit-text-fill-color:#808080 !important;' +
+                        '}';
+                    (document.head || document.documentElement).appendChild(style);
+                }
+
+                scan();
+
+                if (!window.__downls10VisitedObserver) {
+                    window.__downls10VisitedObserver = new MutationObserver(function() {
+                        scan();
+                    });
+                    if (document.documentElement) {
+                        window.__downls10VisitedObserver.observe(document.documentElement, {
+                            childList: true,
+                            subtree: true
+                        });
+                    }
+                }
+            })();
+        """.trimIndent()
+        webView.evaluateJavascript(js, null)
     }
 
     // ⭐ إضافة الصفحة الحالية مباشرة
