@@ -1363,120 +1363,9 @@ class BrowserActivity : Activity() {
      * غير المزار = سماوي، والمزار = بنفسجي ثابت ومحفوظ.
      */
     private fun applyVisitedLinksJs(webView: WebView) {
-        val visitedJson = VisitedSites.asJsonForInjection(this)
-        val pageHost = try { Uri.parse(webView.url ?: "").host } catch (e: Exception) { null }
-        val pageUrlsJson = VisitedSites.urlsForHostJson(this, pageHost)
-        val js = """
-            (function(){
-                window.__downls10Visited = $visitedJson;
-                window.__downls10PageUrls = new Set($pageUrlsJson);
-
-                function normHost(h) { return (h || '').toLowerCase().replace(/^www\./, ''); }
-                function normUrl(u) { return u.split('#')[0].replace(/\/$/, ''); }
-
-                var pageHost = normHost(location.hostname);
-                var isSearchPage =
-                    /(^|\.)google\.[a-z.]+$/.test(pageHost) ||
-                    /(^|\.)bing\.com$/.test(pageHost) ||
-                    /(^|\.)search\.yahoo\.com$/.test(pageHost) ||
-                    /(^|\.)duckduckgo\.com$/.test(pageHost);
-
-                // خارج صفحات البحث: لا نغيّر ألوان الموقع إطلاقاً.
-                if (!isSearchPage) {
-                    var oldStyle = document.getElementById('__downls10_visited_style__');
-                    if (oldStyle) oldStyle.remove();
-                    var oldMarked = document.querySelectorAll('a[data-downls10-downls10-color="1"]');
-                    for (var oi = 0; oi < oldMarked.length; oi++) {
-                        oldMarked[oi].style.removeProperty('color');
-                        oldMarked[oi].style.removeProperty('-webkit-text-fill-color');
-                        oldMarked[oi].removeAttribute('data-downls10-downls10-color');
-                        oldMarked[oi].removeAttribute('data-downls10-visited');
-                    }
-                    return;
-                }
-
-                // في نتائج البحث فقط: لون غير المزار سماوي، والمزار بنفسجي.
-                if (!document.getElementById('__downls10_visited_style__')) {
-                    var st = document.createElement('style');
-                    st.id = '__downls10_visited_style__';
-                    st.textContent = 'a[data-downls10-visited="1"], a[data-downls10-visited="1"] * ' +
-                        '{ color: #B388FF !important; -webkit-text-fill-color: #B388FF !important; }';
-                    (document.head || document.documentElement).appendChild(st);
-                }
-
-                function resolveLink(a) {
-                    var u;
-                    try { u = new URL(a.href, location.href); } catch(e) { return null; }
-                    if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-
-                    var host = normHost(u.hostname);
-                    var full = u.href;
-
-                    // رابط جوجل الوسيط: نستخدم الموقع الحقيقي.
-                    if (/(^|\.)google\.[a-z.]+$/.test(host) && u.pathname === '/url') {
-                        var t = u.searchParams.get('q') || u.searchParams.get('url');
-                        if (t) {
-                            try {
-                                var r = new URL(t);
-                                host = normHost(r.hostname);
-                                full = r.href;
-                            } catch(e) {}
-                        }
-                    }
-                    return { host: host, url: normUrl(full) };
-                }
-
-                function isVisited(info) {
-                    // رابط داخل نفس الموقع: يُعتبر مزاراً فقط إذا زرت الرابط نفسه.
-                    if (info.host === pageHost) return window.__downls10PageUrls.has(info.url);
-                    // رابط لموقع آخر في نتائج البحث: يُعتبر مزاراً إذا زرت الموقع.
-                    return window.__downls10Visited.hasOwnProperty(info.host);
-                }
-
-                function markLink(a) {
-                    var info = resolveLink(a);
-                    if (!info) return;
-
-                    a.setAttribute('data-downls10-marked', '1');
-
-                    if (isVisited(info)) {
-                        a.setAttribute('data-downls10-visited', '1');
-                        a.setAttribute('data-downls10-downls10-color', '1');
-                        a.style.removeProperty('color');
-                        a.style.removeProperty('-webkit-text-fill-color');
-                    } else {
-                        a.removeAttribute('data-downls10-visited');
-                        a.setAttribute('data-downls10-downls10-color', '1');
-                        a.style.setProperty('color', '#00FFFF', 'important');
-                        a.style.setProperty('-webkit-text-fill-color', '#00FFFF', 'important');
-                    }
-                }
-
-                function scanAll(root) {
-                    var links = root.querySelectorAll ? root.querySelectorAll('a[href]') : [];
-                    for (var i = 0; i < links.length; i++) markLink(links[i]);
-                }
-
-                scanAll(document);
-
-                if (!window.__downls10VisitedObserver) {
-                    window.__downls10VisitedObserver = new MutationObserver(function(mutations) {
-                        mutations.forEach(function(m) {
-                            m.addedNodes && m.addedNodes.forEach(function(node) {
-                                if (node.nodeType !== 1) return;
-                                if (node.tagName === 'A') markLink(node);
-                                scanAll(node);
-                            });
-                        });
-                    });
-                    if (document.body) {
-                        window.__downls10VisitedObserver.observe(document.body, { childList: true, subtree: true });
-                    }
-                    window.addEventListener('pageshow', function() { scanAll(document); });
-                }
-            })();
-        """
-        webView.evaluateJavascript(js, null)
+        // نتائج البحث تعرض ألوان الموقع/محرك البحث الأصلية دون أي تلوين من DownLS10.
+        // ألوان المواقع التي تمت زيارتها في واجهة التطبيق محفوظة بشكل مستقل ولا تتأثر بهذا.
+        return
     }
 
     // ⭐ إضافة الصفحة الحالية مباشرة
@@ -1532,7 +1421,7 @@ class BrowserActivity : Activity() {
                     }
                     val titleText = TextView(this).apply {
                         text = bookmark.title
-                        setTextColor(visitedSiteColor(bookmark.url, Color.parseColor("#00FFFF")))
+                        setTextColor(Color.parseColor("#808080"))
                         textSize = 15f
                         layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                         setOnClickListener {
@@ -1915,7 +1804,7 @@ class BrowserActivity : Activity() {
             val displayText = entry.title.ifBlank { entry.url }
             val row = TextView(this).apply {
                 text = displayText
-                setTextColor(visitedSiteColor(entry.url, Color.parseColor("#00FFFF")))
+                setTextColor(Color.parseColor("#808080"))
                 textSize = 14f
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
