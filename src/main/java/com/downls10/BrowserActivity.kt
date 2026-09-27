@@ -522,8 +522,8 @@ class BrowserActivity : Activity() {
     private fun buildSpeedDialView(): View {
         val root = ScrollView(this).apply { setBackgroundColor(Color.BLACK) }
 
-        val columns = 6
-        val horizontalPadding = 24
+        val columns = 4
+        val horizontalPadding = 16
         val screenWidth = resources.displayMetrics.widthPixels
         val cellWidth = (screenWidth - horizontalPadding * 2) / columns
         val iconSize = (cellWidth * 0.68f).toInt()
@@ -1412,14 +1412,6 @@ class BrowserActivity : Activity() {
         val currentHost = try { Uri.parse(currentUrl).host?.lowercase(Locale.US)?.removePrefix("www.") } catch (_: Exception) { null }
         if (currentHost.isNullOrBlank()) return
 
-        // لا نلمس ألوان صفحات نتائج البحث إطلاقاً؛ تبقى ألوان محرك البحث الأصلية.
-        val isSearchPage = currentHost.contains("google.") ||
-            currentHost == "google.com" ||
-            currentHost.contains("bing.") ||
-            currentHost.contains("yahoo.") ||
-            currentHost.contains("duckduckgo.")
-        if (isSearchPage) return
-
         val visitedJson = VisitedSites.asJsonForInjection(this)
         val js = """
             (function() {
@@ -1467,16 +1459,17 @@ class BrowserActivity : Activity() {
 
                 scan();
 
-                if (!window.__downls10VisitedObserver) {
-                    window.__downls10VisitedObserver = new MutationObserver(function() {
-                        scan();
+                if (window.__downls10VisitedObserver) {
+                    try { window.__downls10VisitedObserver.disconnect(); } catch (_) {}
+                }
+                window.__downls10VisitedObserver = new MutationObserver(function() {
+                    scan();
+                });
+                if (document.documentElement) {
+                    window.__downls10VisitedObserver.observe(document.documentElement, {
+                        childList: true,
+                        subtree: true
                     });
-                    if (document.documentElement) {
-                        window.__downls10VisitedObserver.observe(document.documentElement, {
-                            childList: true,
-                            subtree: true
-                        });
-                    }
                 }
             })();
         """.trimIndent()
