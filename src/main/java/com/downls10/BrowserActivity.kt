@@ -532,7 +532,7 @@ class BrowserActivity : Activity() {
             columnCount = columns
             alignmentMode = GridLayout.ALIGN_BOUNDS
             setPadding(horizontalPadding, 48, horizontalPadding, 48)
-            layoutParams = ScrollView.LayoutParams(
+            layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
