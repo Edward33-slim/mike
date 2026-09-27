@@ -1434,7 +1434,23 @@ class BrowserActivity : Activity() {
                         if (!/^https?:\/\//i.test(href)) continue;
 
                         var host = '';
-                        try { host = normalizeHost(new URL(href).hostname); } catch (_) { continue; }
+                        try {
+                            var linkUrl = new URL(href);
+                            host = normalizeHost(linkUrl.hostname);
+
+                            // Search engines may wrap the real result URL in q/url/u.
+                            if (host.indexOf('google.') >= 0 ||
+                                host.indexOf('bing.') >= 0 ||
+                                host.indexOf('yahoo.') >= 0 ||
+                                host.indexOf('duckduckgo.') >= 0) {
+                                var target = linkUrl.searchParams.get('q') ||
+                                    linkUrl.searchParams.get('url') ||
+                                    linkUrl.searchParams.get('u');
+                                if (target && /^https?:\/\//i.test(target)) {
+                                    try { host = normalizeHost(new URL(target).hostname); } catch (_) {}
+                                }
+                            }
+                        } catch (_) { continue; }
 
                         if (isVisitedHost(host)) {
                             a.setAttribute('data-downls10-visited', '1');
