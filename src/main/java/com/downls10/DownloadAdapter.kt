@@ -70,10 +70,7 @@ class DownloadAdapter(
                     v.performClick()
                     true
                 }
-                android.view.MotionEvent.ACTION_CANCEL -> {
-                    v.performClick()
-                    true
-                }
+                android.view.MotionEvent.ACTION_CANCEL -> false
                 else -> true
             }
         }
