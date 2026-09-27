@@ -28,105 +28,20 @@ jobs:
       - name: Install Android SDK 34
         run: sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Create temporary Gradle project
+      - name: Install Gradle 8.2
         run: |
-          cat > settings.gradle <<'EOF'
-          pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          rootProject.name = "DownLS10"
-          include(":app")
-          EOF
-
-          mkdir -p app
-          cat > build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application' version '8.2.2' apply false
-              id 'org.jetbrains.kotlin.android' version '1.9.22' apply false
-          }
-          EOF
-
-          cat > app/build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application'
-              id 'org.jetbrains.kotlin.android'
-          }
-
-          android {
-              namespace 'com.downls10'
-              compileSdk 34
-
-              defaultConfig {
-                  applicationId 'com.downls10'
-                  minSdk 24
-                  targetSdk 34
-                  versionCode 55
-                  versionName '5.5'
-              }
-
-              buildTypes {
-                  debug {
-                      debuggable true
-                      minifyEnabled false
-                  }
-                  release {
-                      minifyEnabled false
-                      shrinkResources false
-                  }
-              }
-          }
-
-          dependencies {
-              implementation 'androidx.core:core-ktx:1.12.0'
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'com.google.android.material:material:1.11.0'
-              implementation 'androidx.recyclerview:recyclerview:1.3.2'
-              implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
-              implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-          }
-
-          android.sourceSets {
-              main {
-                  manifest.srcFile '../src/main/AndroidManifest.xml'
-                  java.srcDirs = ['../src/main/java', '../src/main/kotlin']
-                  res.srcDirs = ['../src/main/res']
-                  assets.srcDirs = ['../src/main/assets']
-              }
-              debug {
-                  java.srcDirs = ['../src/debug/java', '../src/debug/kotlin']
-                  res.srcDirs = ['../src/debug/res']
-                  assets.srcDirs = ['../src/debug/assets']
-              }
-              release {
-                  java.srcDirs = ['../src/release/java', '../src/release/kotlin']
-                  res.srcDirs = ['../src/release/res']
-                  assets.srcDirs = ['../src/release/assets']
-              }
-          }
-          EOF
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+          curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.2-bin.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          echo "/tmp/gradle-8.2/bin" >> "$GITHUB_PATH"
 
       - name: Build debug APK
         run: |
           gradle --version
-          gradle :app:assembleDebug --no-daemon
+          gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: DownLS10-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
+          path: build/outputs/apk/debug/*.apk
           if-no-files-found: error
