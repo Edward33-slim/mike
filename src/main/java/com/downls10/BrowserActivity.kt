@@ -1412,6 +1412,15 @@ class BrowserActivity : Activity() {
         val currentHost = try { Uri.parse(currentUrl).host?.lowercase(Locale.US)?.removePrefix("www.") } catch (_: Exception) { null }
         if (currentHost.isNullOrBlank()) return
 
+        // داخل المواقع نترك ألوان الموقع الأصلية بالكامل.
+        // تطبيق الرمادي يكون فقط على نتائج البحث للمواقع التي تمت زيارتها.
+        val isSearchPage = currentHost.contains("google.") ||
+            currentHost == "google.com" ||
+            currentHost.contains("bing.") ||
+            currentHost.contains("yahoo.") ||
+            currentHost.contains("duckduckgo.")
+        if (!isSearchPage) return
+
         val visitedJson = VisitedSites.asJsonForInjection(this)
         val js = """
             (function() {
