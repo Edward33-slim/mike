@@ -195,14 +195,9 @@ object DownloadsRepository {
             return
         }
 
-        // اسم الملف: من Content-Disposition، وإلا من الرابط إذا كان يشبه اسم ملف حقيقي
+        // اسم الملف النهائي يُؤخذ من Content-Disposition أولاً، حتى لو كان الرابط
+        // نفسه يحتوي اسم ملف مختلفًا.
         val hint = suggestedFileName?.takeIf { it.isNotBlank() } ?: nameFromUrlIfReliable(cleanUrl)
-        if (hint != null && hasUsableExtension(hint)) {
-            beginNewDownload(appContext, cleanUrl, sanitizeFileName(hint), userAgent, referer)
-            return
-        }
-
-        // الاسم غير معروف أو بلا امتداد: نسأل الخادم أولاً عن الاسم والنوع الحقيقيين
         probeExecutor.execute {
             val info = downloadEngine.probe(cleanUrl, userAgent, referer)
             val name = resolveFileName(hint, info, cleanUrl, mimeType)
@@ -370,8 +365,9 @@ object DownloadsRepository {
 
     /** يجمع اسم الملف النهائي من: الاسم المقترح، Content-Disposition، الرابط النهائي، ونوع المحتوى. */
     private fun resolveFileName(hint: String?, info: ProbeInfo?, originalUrl: String, mimeHint: String?): String {
-        var name: String? = hint?.takeIf { it.isNotBlank() }
-        if (name == null && info != null) name = fileNameFromContentDispositionOrNull(info.contentDisposition)
+        var name: String? = null
+        if (info != null) name = fileNameFromContentDispositionOrNull(info.contentDisposition)
+        if (name == null) name = hint?.takeIf { it.isNotBlank() }
         if (name == null) name = lastSegmentName(info?.finalUrl ?: originalUrl) ?: lastSegmentName(originalUrl)
         if (name == null) name = "file_${System.currentTimeMillis()}"
         name = sanitizeFileName(name)
