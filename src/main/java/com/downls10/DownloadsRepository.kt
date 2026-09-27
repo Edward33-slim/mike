@@ -698,7 +698,18 @@ object DownloadsRepository {
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
         return runCatching {
-            context.contentResolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values)
+            val resolver = context.contentResolver
+            resolver.insert(
+                MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                values
+            ) ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                // بعض أجهزة Android 10/ROMs لا تعيد URI من مجموعة Downloads،
+                // فنستخدم مجموعة Files مع نفس مجلد Download كمسار احتياطي.
+                resolver.insert(
+                    MediaStore.Files.getContentUri("external"),
+                    values
+                )
+            } else null
         }.getOrNull()
     }
 
