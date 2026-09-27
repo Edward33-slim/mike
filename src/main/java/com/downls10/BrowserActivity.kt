@@ -56,6 +56,10 @@ private data class Tab(
     var isHome: Boolean = true,
     var title: String = "صفحة جديدة",
     var desktopMode: Boolean = false,
+    // Translation stays enabled for this tab while the user browses.
+    var translationEnabled: Boolean = false,
+    var translationInProgress: Boolean = false,
+    var lastTranslatedUrl: String = "",
     val backStack: MutableList<String> = mutableListOf(),
     val forwardStack: MutableList<String> = mutableListOf(),
     // --- حفظ واستعادة موضع التمرير عند الرجوع/التقدم ---
