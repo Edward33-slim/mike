@@ -742,6 +742,16 @@ class BrowserActivity : Activity() {
 
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
+                if (request.isForMainFrame && looksLikeDirectFileUrl(url)) {
+                    DownloadsRepository.startNewDownload(
+                        this@BrowserActivity,
+                        url,
+                        showToast = true,
+                        userAgent = view.settings.userAgentString,
+                        referer = view.url
+                    )
+                    return true
+                }
                 if (request.isForMainFrame) {
                     val known = DownloadsRepository.downloadList.find { it.url == url }
                     if (known != null) {
@@ -1033,6 +1043,29 @@ class BrowserActivity : Activity() {
     private fun loadAndRecord(webView: WebView, url: String) {
         recordVisitedNavigation(url)
         webView.loadUrl(url)
+    }
+
+    /** يلتقط روابط الملفات المباشرة حتى لو كان WebView يستطيع عرض نوع الملف داخله. */
+    private fun looksLikeDirectFileUrl(rawUrl: String): Boolean {
+        val uri = try { Uri.parse(rawUrl) } catch (_: Exception) { return false }
+        val path = uri.path?.lowercase(Locale.US) ?: return false
+        val ext = path.substringAfterLast('.', "")
+        if (ext.isBlank() || ext.length > 10 || !ext.all { it.isLetterOrDigit() }) return false
+        // صفحات الويب الديناميكية/العادية لا تُعامل كملفات.
+        val webPageExtensions = setOf("html", "htm", "php", "asp", "aspx", "jsp", "cgi", "do", "action", "ashx", "axd", "pl")
+        if (ext in webPageExtensions) return false
+        // الامتدادات المعروفة للملفات التي يجب أن تنزل إلى Download.
+        val fileExtensions = setOf(
+            "apk", "aab", "zip", "rar", "7z", "tar", "gz", "bz2", "xz", "iso",
+            "pdf", "epub", "mobi", "azw", "doc", "docx", "xls", "xlsx", "ppt", "pptx",
+            "txt", "csv", "json", "xml", "rtf", "odt", "ods", "odp",
+            "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg", "ico", "tif", "tiff",
+            "mp3", "wav", "ogg", "m4a", "flac", "aac",
+            "mp4", "mkv", "avi", "mov", "webm", "3gp", "m4v",
+            "srt", "ass", "vtt", "torrent", "bin", "dmg", "deb", "rpm", "msi", "exe",
+            "jar", "war", "class", "db", "sqlite", "sql", "bak", "dat", "log"
+        )
+        return ext in fileExtensions
     }
 
     private fun navigateWithSafetyCheck(webView: WebView, rawUrl: String) {
