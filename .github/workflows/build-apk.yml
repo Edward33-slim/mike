@@ -116,6 +116,9 @@ jobs:
           }
           EOF
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Build debug APK
         run: |
           gradle --version
