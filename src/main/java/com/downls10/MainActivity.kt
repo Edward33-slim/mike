@@ -48,6 +48,17 @@ class MainActivity : Activity() {
         listView.adapter = adapter
 
         btnAddUrl.setOnClickListener { showAddUrlDialog() }
+        // منطقة لمس أكبر للكرة الرمادية مع الإبقاء على شكلها الحالي.
+        btnBrowser.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> true
+                android.view.MotionEvent.ACTION_UP -> {
+                    v.performClick()
+                    true
+                }
+                else -> false
+            }
+        }
         btnBrowser.setOnClickListener {
             val browserIntent = Intent(this, BrowserActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
