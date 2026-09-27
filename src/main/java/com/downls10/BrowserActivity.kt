@@ -832,6 +832,14 @@ class BrowserActivity : Activity() {
                 if (isActiveTab(view)) {
                     if (hideMedia) applyHideMediaJs(view)
                 }
+
+                // Keep translating every new page opened inside this translated tab.
+                if (tabForView?.translationEnabled == true) {
+                    mainHandler.postDelayed({
+                        translateTabPageIfNeeded(view, tabForView)
+                    }, 500L)
+                }
+
                 persistTabs()
             }
         }
