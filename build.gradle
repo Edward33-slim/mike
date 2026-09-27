@@ -11,8 +11,14 @@ android {
         applicationId 'com.downls10'
         minSdk 24
         targetSdk 34
-        versionCode 56
-        versionName '5.6'
+        versionCode 57
+        versionName '5.7'
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file("signing/downls10-stable.jks")
+        }
     }
 
     compileOptions {
@@ -28,11 +34,13 @@ android {
         debug {
             debuggable true
             minifyEnabled false
+            signingConfig signingConfigs.debug
         }
         release {
             debuggable false
             minifyEnabled false
             shrinkResources false
+            signingConfig signingConfigs.debug
         }
     }
 
