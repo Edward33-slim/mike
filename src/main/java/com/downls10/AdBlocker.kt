@@ -35,15 +35,11 @@ object AdBlocker {
 
     val LISTS = listOf(
         BlockListDef("stevenblack", "StevenBlack", "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts", ListFormat.HOSTS, ListCategory.AD),
-        BlockListDef("ubo_filters", "uBlock Origin - Filters", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt", ListFormat.ABP, ListCategory.AD),
-        BlockListDef("ubo_badware", "uBlock Origin - Badware", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/badware.txt", ListFormat.ABP, ListCategory.AD),
-        BlockListDef("ubo_privacy", "uBlock Origin - Privacy", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/privacy.txt", ListFormat.ABP, ListCategory.AD),
         BlockListDef("ubo_resource_abuse", "uBlock Origin - Resource Abuse", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/resource-abuse.txt", ListFormat.ABP, ListCategory.AD),
         BlockListDef("ubo_unbreak", "uBlock Origin - Unbreak", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/unbreak.txt", ListFormat.ABP, ListCategory.AD),
         BlockListDef("adguard_base", "AdGuard Base Filter", "https://filters.adtidy.org/extension/chromium/filters/2.txt", ListFormat.ABP, ListCategory.AD),
         BlockListDef("pgl", "PGL (Peter Lowe)", "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext", ListFormat.HOSTS, ListCategory.AD),
         BlockListDef("nocoin", "NoCoin", "https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt", ListFormat.HOSTS, ListCategory.AD),
-        BlockListDef("easylist", "EasyList", "https://easylist.to/easylist/easylist.txt", ListFormat.ABP, ListCategory.AD),
         BlockListDef(
             "adguard_cname", "AdGuard - متتبعات الطرف الأول (CNAME)",
             "https://raw.githubusercontent.com/AdguardTeam/cname-trackers/master/data/combined_disguised_trackers_justdomains.txt",
