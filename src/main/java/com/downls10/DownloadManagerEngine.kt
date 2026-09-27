@@ -71,6 +71,8 @@ class DownloadManagerEngine {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val activeTasks = ConcurrentHashMap<Long, Boolean>()
     private val generations = ConcurrentHashMap<Long, Int>()
+    // الاتصال الفعلي لكل تنزيل حتى يمكن إغلاقه فور الضغط على إيقاف.
+    private val activeSources = ConcurrentHashMap<Long, DownloadSource>()
 
     private val bufferSize = 256 * 1024
     private val maxConsecutiveFailures = 8
@@ -329,6 +331,7 @@ class DownloadManagerEngine {
                         else -> openHttpSource(item, existingLength)
                     }
                     source = src
+                    activeSources[item.id] = src
                     val startOffset = src.startOffset
                     val totalSize = src.totalSize
                     item.totalBytes = totalSize
@@ -406,6 +409,7 @@ class DownloadManagerEngine {
                     try { fileOutput?.close() } catch (_: Exception) { }
                     try { output?.close() } catch (_: Exception) { }
                     source?.close()
+                    activeSources.remove(item.id, source)
                     if (completedOk) mainHandler.post { onComplete() }
                 }
 
@@ -421,7 +425,11 @@ class DownloadManagerEngine {
         }
     }
 
-    fun pauseDownload(id: Long) { activeTasks[id] = false }
+    fun pauseDownload(id: Long) {
+        activeTasks[id] = false
+        // إغلاق الاتصال يفك read() فوراً بدل انتظار مهلة الشبكة.
+        activeSources.remove(id)?.close()
+    }
 
     fun cancelDownload(id: Long, saveDir: File, fileName: String, deleteFileOnDisk: Boolean) {
         pauseDownload(id)
