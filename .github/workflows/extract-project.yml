@@ -1,0 +1,26 @@
+name: Extract project
+on:
+  push:
+    paths-ignore:
+      - '.github/workflows/extract-project.yml'
+permissions:
+  contents: write
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract project archive
+        run: |
+          rm -rf .extract-temp
+          mkdir .extract-temp
+          unzip -q DownLS10-modified-code.zip -d .extract-temp
+          unzip -q .extract-temp/DownLS10.zip -d .
+          rm -rf .extract-temp DownLS10-modified-code.zip
+      - name: Commit extracted files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --quiet || git commit -m 'Extract DownLS10 project files'
+          git push
