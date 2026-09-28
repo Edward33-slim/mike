@@ -1,0 +1,57 @@
+name: 🧹 Delete All Actions Runs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete all previous workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          CURRENT_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          page=1
+
+          while true; do
+            runs="$(curl -fsSL \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2026-03-10" \
+              "https://api.github.com/repos/$REPO/actions/runs?per_page=100&page=$page")"
+
+            count="$(echo "$runs" | jq '.workflow_runs | length')"
+
+            if [ "$count" -eq 0 ]; then
+              break
+            fi
+
+            echo "$runs" | jq -r '.workflow_runs[].id' | while read -r run_id; do
+              if [ "$run_id" = "$CURRENT_RUN_ID" ]; then
+                echo "Skipping current run: $run_id"
+                continue
+              fi
+
+              echo "Deleting workflow run: $run_id"
+
+              curl -fsSL -X DELETE \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "X-GitHub-Api-Version: 2026-03-10" \
+                "https://api.github.com/repos/$REPO/actions/runs/$run_id"
+
+              echo "Deleted: $run_id"
+            done
+
+            page=$((page + 1))
+          done
+
+          echo "All previous workflow runs have been deleted."
+          echo "The current run is intentionally kept because it is still running."
