@@ -43,6 +43,7 @@ import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
@@ -617,7 +618,7 @@ class BrowserActivity : Activity() {
                 gravity = Gravity.CENTER_HORIZONTAL
             }
             scaleType = ImageView.ScaleType.CENTER_INSIDE
-            setBackgroundColor(Color.parseColor("#222222"))
+            tag = item.url
         }
         loadFaviconInto(icon, item.url)
 
@@ -634,29 +635,58 @@ class BrowserActivity : Activity() {
         return container
     }
 
+    private fun faviconCacheFile(host: String): File {
+        val safe = Base64.encodeToString(
+            host.toByteArray(Charsets.UTF_8),
+            Base64.URL_SAFE or Base64.NO_WRAP
+        )
+        val dir = File(filesDir, "speeddial_favicons")
+        if (!dir.exists()) dir.mkdirs()
+        return File(dir, safe + ".png")
+    }
+
     private fun loadFaviconInto(imageView: ImageView, pageUrl: String) {
-        val host = try { Uri.parse(pageUrl).host } catch (e: Exception) { null } ?: return
+        val host = try { Uri.parse(pageUrl).host?.lowercase(Locale.US) } catch (e: Exception) { null } ?: return
+        val cacheFile = faviconCacheFile(host)
+
+        // استخدم الصورة المحفوظة أولاً حتى لا تتحول مربعات المواقع إلى أسود عند كل تشغيل.
         bgExecutor.execute {
             var bitmap: Bitmap? = null
-            var connection: HttpURLConnection? = null
-            try {
-                val url = URL("https://www.google.com/s2/favicons?sz=128&domain=$host")
-                connection = url.openConnection() as HttpURLConnection
-                connection.connectTimeout = 8000
-                connection.readTimeout = 8000
-                bitmap = BitmapFactory.decodeStream(connection.inputStream)
-            } catch (e: Exception) {
-                bitmap = null
-            } finally {
-                connection?.disconnect()
+            if (cacheFile.exists()) {
+                bitmap = runCatching { BitmapFactory.decodeFile(cacheFile.absolutePath) }.getOrNull()
             }
+
+            if (bitmap == null) {
+                var connection: HttpURLConnection? = null
+                try {
+                    val url = URL("https://www.google.com/s2/favicons?sz=128&domain=$host")
+                    connection = url.openConnection() as HttpURLConnection
+                    connection.connectTimeout = 8000
+                    connection.readTimeout = 8000
+                    bitmap = BitmapFactory.decodeStream(connection.inputStream)
+
+                    bitmap?.let { downloaded ->
+                        runCatching {
+                            cacheFile.outputStream().use { out ->
+                                downloaded.compress(Bitmap.CompressFormat.PNG, 100, out)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    bitmap = null
+                } finally {
+                    connection?.disconnect()
+                }
+            }
+
             val result = bitmap
             mainHandler.post {
-                if (result != null) imageView.setImageBitmap(result)
+                if (result != null && imageView.tag == pageUrl) {
+                    imageView.setImageBitmap(result)
+                }
             }
         }
     }
-
     private fun showAddSpeedDialDialog() {
         val input = EditText(this).apply {
             hint = "الصق الرابط هنا"
@@ -825,9 +855,6 @@ class BrowserActivity : Activity() {
                 if (url != null) {
                     BrowserStorage.addHistory(this@BrowserActivity, view.title ?: url, url)
                     recordVisitedNavigation(url)
-                    applyVisitedLinksJs(view)
-                    mainHandler.postDelayed({ applyVisitedLinksJs(view) }, 600)
-                    mainHandler.postDelayed({ applyVisitedLinksJs(view) }, 1500)
                 }
                 val resolvedTitle = view.title?.takeIf { it.isNotBlank() }
                     ?: url?.takeIf { it.isNotBlank() }
@@ -1360,19 +1387,34 @@ class BrowserActivity : Activity() {
     }
 
     private fun openPopupInNewTab(rawUrl: String) {
-        val lower = rawUrl.trim().lowercase()
+        val cleanUrl = rawUrl.trim()
+        val lower = cleanUrl.lowercase()
         val isWebUrl = lower.startsWith("http://") || lower.startsWith("https://")
-        if (!isWebUrl || MegaSupport.isMegaFileLink(rawUrl.trim())) {
-            // magnet/ftp/Mega/تطبيق خارجي: يتولاها مسار التنقل الحالي بدون تبويب فارغ
-            navigateWithSafetyCheck(currentWebView(), rawUrl)
+
+        // إذا كانت النافذة المنبثقة تحتوي رابط ملف مباشر، فزر «سماح» يبدأ
+        // التنزيل مباشرة بدل تحميل الرابط داخل WebView ثم فقدان حدث التنزيل.
+        if (isWebUrl && looksLikeDirectFileUrl(cleanUrl)) {
+            DownloadsRepository.startNewDownload(
+                this,
+                cleanUrl,
+                showToast = true,
+                userAgent = currentWebView().settings.userAgentString,
+                referer = currentWebView().url
+            )
             return
         }
+
+        if (!isWebUrl || MegaSupport.isMegaFileLink(cleanUrl)) {
+            // magnet/ftp/Mega/تطبيق خارجي: يتولاها مسار التنقل الحالي بدون تبويب فارغ
+            navigateWithSafetyCheck(currentWebView(), cleanUrl)
+            return
+        }
+
         createTabInternal(isHome = false, url = null)
         switchToTab(tabs.size - 1)
-        navigateWithSafetyCheck(tabs[tabs.size - 1].webView, rawUrl)
+        navigateWithSafetyCheck(tabs[tabs.size - 1].webView, cleanUrl)
         persistTabs()
     }
-
     private fun toggleSetting(key: String, value: Boolean, onEnabled: (Boolean) -> Unit) {
         settingsPrefs().edit().putBoolean(key, value).apply()
         onEnabled(value)
@@ -1418,102 +1460,6 @@ class BrowserActivity : Activity() {
                 style.innerHTML = css;
             })();
         """
-        webView.evaluateJavascript(js, null)
-    }
-
-    /**
-     * يلوّن روابط المواقع التي سبق فتحها بالبنفسجي.
-     * حالة الزيارة تأتي من VisitedSites المخزنة على القرص، لذلك لا تعتمد على
-     * بقاء التطبيق مفتوحاً أو على حالة WebView الحالية.
-     */
-    /**
-     * يحافظ على لون الرابط الأصلي إذا لم يكن الموقع قد زاره المستخدم.
-     * إذا كان نطاق الرابط قد تمت زيارته سابقًا، يُعرض الرابط بالرمادي.
-     * هذا يعمل في نتائج البحث وفي صفحات المواقع، وليس مع Google فقط.
-     */
-    private fun applyVisitedLinksJs(webView: WebView) {
-        val currentUrl = webView.url ?: return
-        val currentHost = try {
-            Uri.parse(currentUrl).host?.lowercase(Locale.US)?.removePrefix("www.")
-        } catch (_: Exception) { null }
-        if (currentHost.isNullOrBlank()) return
-
-        val visitedJson = VisitedSites.asJsonForInjection(this)
-        val js = """
-            (function() {
-                var visited = $visitedJson;
-                var STYLE_ID = '__downls10_visited_gray__';
-
-                function normalizeHost(host) {
-                    return String(host || '').toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
-                }
-
-                function isVisitedHost(host) {
-                    return !!visited[normalizeHost(host)];
-                }
-
-                function scan() {
-                    var links = document.querySelectorAll('a[href]');
-                    for (var i = 0; i < links.length; i++) {
-                        var a = links[i];
-                        var href = a.href || '';
-                        if (!/^https?:\/\//i.test(href)) continue;
-
-                        var host = '';
-                        try {
-                            var linkUrl = new URL(href);
-                            host = normalizeHost(linkUrl.hostname);
-
-                            if (host.indexOf('google.') >= 0 ||
-                                host.indexOf('bing.') >= 0 ||
-                                host.indexOf('yahoo.') >= 0 ||
-                                host.indexOf('duckduckgo.') >= 0) {
-                                var target = linkUrl.searchParams.get('q') ||
-                                    linkUrl.searchParams.get('url') ||
-                                    linkUrl.searchParams.get('u');
-                                if (target && /^https?:\/\//i.test(target)) {
-                                    try { host = normalizeHost(new URL(target).hostname); } catch (_) {}
-                                }
-                            }
-                        } catch (_) { continue; }
-
-                        if (isVisitedHost(host)) {
-                            a.setAttribute('data-downls10-visited', '1');
-                        } else {
-                            a.removeAttribute('data-downls10-visited');
-                        }
-                    }
-                }
-
-                var oldStyle = document.getElementById(STYLE_ID);
-                if (!oldStyle) {
-                    var style = document.createElement('style');
-                    style.id = STYLE_ID;
-                    style.textContent =
-                        'a[data-downls10-visited="1"],' +
-                        'a[data-downls10-visited="1"] * {' +
-                        'color:#808080 !important;' +
-                        '-webkit-text-fill-color:#808080 !important;' +
-                        '}';
-                    (document.head || document.documentElement).appendChild(style);
-                }
-
-                scan();
-
-                if (window.__downls10VisitedObserver) {
-                    try { window.__downls10VisitedObserver.disconnect(); } catch (_) {}
-                }
-                window.__downls10VisitedObserver = new MutationObserver(function() {
-                    scan();
-                });
-                if (document.documentElement) {
-                    window.__downls10VisitedObserver.observe(document.documentElement, {
-                        childList: true,
-                        subtree: true
-                    });
-                }
-            })();
-        """.trimIndent()
         webView.evaluateJavascript(js, null)
     }
 
