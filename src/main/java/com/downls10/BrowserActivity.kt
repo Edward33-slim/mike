@@ -2152,7 +2152,7 @@ class BrowserActivity : Activity() {
                 val tabUrl = if (tab.isHome) null else tab.webView.url
                 val titleText = TextView(this).apply {
                     text = if (index == currentTabIndex) "● $label" else label
-                    setTextColor(if (tab.isHome) Color.WHITE else visitedSiteColor(tabUrl, Color.CYAN))
+                    setTextColor(Color.WHITE)
                     textSize = 15f
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                     setOnClickListener {
