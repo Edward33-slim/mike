@@ -75,7 +75,7 @@ class DownloadManagerEngine {
     private val activeSources = ConcurrentHashMap<Long, DownloadSource>()
 
     private val bufferSize = 256 * 1024
-    private val maxConsecutiveFailures = 8
+    private val maxConsecutiveFailures = 12
 
     private val defaultUserAgent =
         "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 Chrome/124.0 Mobile Safari/537.36"
@@ -143,8 +143,8 @@ class DownloadManagerEngine {
         val ref = item.referer
         while (true) {
             val conn = URL(currentUrl).openConnection() as HttpURLConnection
-            conn.connectTimeout = 20000
-            conn.readTimeout = 30000
+            conn.connectTimeout = 60000
+            conn.readTimeout = 120000
             conn.instanceFollowRedirects = false
             // بدون ضغط gzip حتى يكون حجم الملف وتقدّم التنزيل ومواضع الاستئناف دقيقة
             conn.setRequestProperty("Accept-Encoding", "identity")
@@ -373,7 +373,7 @@ class DownloadManagerEngine {
 
                         val now = System.currentTimeMillis()
                         val elapsed = now - lastTime
-                        if (elapsed >= 500) {
+                        if (elapsed >= 3000) {
                             val speedKb = (bytesSinceLast * 1000L / elapsed) / 1024L
                             val speedText = if (speedKb >= 1024) "${speedKb / 1024} MB/s" else "$speedKb KB/s"
                             val progress = if (totalSize > 0) ((totalRead * 100) / totalSize).toInt().coerceIn(0, 100) else 0
