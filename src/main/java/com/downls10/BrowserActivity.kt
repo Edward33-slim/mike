@@ -1131,13 +1131,16 @@ class BrowserActivity : Activity() {
         val url = webView.url ?: return
         if (!isSearchResultsPage(url)) return
 
-        val visitedJson = VisitedSites.allVisitedUrlsJson(this)
-        val quotedJson = JSONObject.quote(visitedJson)
+        val visitedUrlsJson = VisitedSites.allVisitedUrlsJson(this)
+        val visitedHostsJson = VisitedSites.asJsonForInjection(this)
+        val quotedUrlsJson = JSONObject.quote(visitedUrlsJson)
+        val quotedHostsJson = JSONObject.quote(visitedHostsJson)
 
         val js = """
-            (function(visitedRaw) {
+            (function(visitedUrlsRaw, visitedHostsRaw) {
                 try {
-                    var visited = JSON.parse(visitedRaw || '{}');
+                    var visitedUrls = JSON.parse(visitedUrlsRaw || '{}');
+                    var visitedHosts = JSON.parse(visitedHostsRaw || '{}');
                     var SKY = '#87CEFA';
                     var PURPLE = '#800080';
 
@@ -1165,11 +1168,22 @@ class BrowserActivity : Activity() {
                     }
 
                     function isVisited(u) {
-                        var n = normalize(unwrapGoogle(u));
+                        var unwrapped = unwrapGoogle(u);
+                        var n = normalize(unwrapped);
                         if (!n) return false;
-                        if (visited[n]) return true;
+
+                        // نعتمد أولاً على النطاق المزور: إذا فتح المستخدم أي صفحة
+                        // من الموقع، يجب أن تظهر كل نتائج ذلك الموقع كمزارة.
+                        try {
+                            var host = new URL(unwrapped, location.href).hostname
+                                .toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
+                            if (host && visitedHosts[host]) return true;
+                        } catch (e) {}
+
+                        // ثم نتحقق من الرابط الكامل للتعامل مع الصفحات داخل نفس الموقع.
+                        if (visitedUrls[n]) return true;
                         var alt = n.endsWith('/') ? n.slice(0, -1) : n + '/';
-                        return !!visited[alt];
+                        return !!visitedUrls[alt];
                     }
 
                     function restoreOriginalColor(element) {
@@ -1219,7 +1233,7 @@ class BrowserActivity : Activity() {
                         window.addEventListener('pageshow', styleResults);
                     }
                 } catch (e) {}
-            })($quotedJson);
+            })($quotedUrlsJson, $quotedHostsJson);
         """
         webView.evaluateJavascript(js, null)
     }
