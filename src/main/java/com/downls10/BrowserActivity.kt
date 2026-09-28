@@ -1138,7 +1138,6 @@ class BrowserActivity : Activity() {
             (function(visitedRaw) {
                 try {
                     var visited = JSON.parse(visitedRaw || '{}');
-                    var CYAN = '#00FFFF';
                     var GRAY = '#808080';
 
                     function normalize(u) {
@@ -1172,6 +1171,12 @@ class BrowserActivity : Activity() {
                         return !!visited[alt];
                     }
 
+                    function restoreOriginalColor(element) {
+                        // لا نفرض أي لون على الرابط غير المفتوح؛ إزالة اللون المضاف
+                        // تسمح لـ CSS الأصلي للموقع/محرك البحث بالظهور كما هو.
+                        element.style.removeProperty('color');
+                    }
+
                     function styleResults() {
                         var links = document.querySelectorAll('a[href]');
                         for (var i = 0; i < links.length; i++) {
@@ -1184,11 +1189,17 @@ class BrowserActivity : Activity() {
                             if (linkUrl.hostname.toLowerCase() === currentHost) continue;
                             if (!String(a.innerText || a.textContent || '').trim()) continue;
 
-                            var color = isVisited(href) ? GRAY : CYAN;
-                            a.style.setProperty('color', color, 'important');
-                            a.querySelectorAll('*').forEach(function(child) {
-                                child.style.setProperty('color', color, 'important');
-                            });
+                            if (isVisited(href)) {
+                                a.style.setProperty('color', GRAY, 'important');
+                                a.querySelectorAll('*').forEach(function(child) {
+                                    child.style.setProperty('color', GRAY, 'important');
+                                });
+                            } else {
+                                restoreOriginalColor(a);
+                                a.querySelectorAll('*').forEach(function(child) {
+                                    restoreOriginalColor(child);
+                                });
+                            }
                         }
                     }
 
