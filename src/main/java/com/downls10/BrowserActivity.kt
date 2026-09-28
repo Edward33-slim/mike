@@ -110,10 +110,10 @@ class BrowserActivity : Activity() {
     private fun settingsPrefs() = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     private fun savedFontZoom(): Int =
-        settingsPrefs().getInt("fontZoom", 100).coerceIn(50, 300)
+        settingsPrefs().getInt("fontZoom", 100).coerceIn(50, 200)
 
     private fun saveFontZoom(value: Int) {
-        settingsPrefs().edit().putInt("fontZoom", value.coerceIn(50, 300)).apply()
+        settingsPrefs().edit().putInt("fontZoom", value.coerceIn(50, 200)).apply()
     }
 
     private fun cameraAllowed() = settingsPrefs().getBoolean("camera", false)
@@ -853,8 +853,9 @@ class BrowserActivity : Activity() {
                     }
                 }
                 if (url != null) {
-                    BrowserStorage.addHistory(this@BrowserActivity, view.title ?: url, url)
                     recordVisitedNavigation(url)
+                    BrowserStorage.addHistory(this@BrowserActivity, view.title ?: url, url)
+                    applyVisitedSearchResultColors(view)
                 }
                 val resolvedTitle = view.title?.takeIf { it.isNotBlank() }
                     ?: url?.takeIf { it.isNotBlank() }
@@ -870,6 +871,15 @@ class BrowserActivity : Activity() {
                 if (tabForView?.desktopMode == true) applyDesktopViewportJs(view)
                 if (isActiveTab(view)) {
                     if (hideMedia) applyHideMediaJs(view)
+                }
+
+                if (isSearchResultsPage(url)) {
+                    applyVisitedSearchResultColors(view)
+                    mainHandler.postDelayed({
+                        if (!isFinishing && !isDestroyed && isSearchResultsPage(view.url)) {
+                            applyVisitedSearchResultColors(view)
+                        }
+                    }, 700L)
                 }
 
                 // Keep translating every new page opened inside this translated tab.
@@ -1082,8 +1092,107 @@ class BrowserActivity : Activity() {
         return VisitedSites.isVisited(this, host)
     }
 
-    private fun visitedSiteColor(url: String?, unvisitedColor: Int = Color.parseColor("#808080")): Int {
-        return Color.parseColor("#808080")
+    private fun visitedSiteColor(url: String?, unvisitedColor: Int = Color.CYAN): Int {
+        return if (isVisitedSite(url)) Color.parseColor("#808080") else unvisitedColor
+    }
+
+    private fun isSearchResultsPage(url: String?): Boolean {
+        if (url.isNullOrBlank()) return false
+        val uri = try { Uri.parse(url) } catch (e: Exception) { return false }
+        val host = uri.host?.lowercase(Locale.US) ?: return false
+        val path = uri.path?.lowercase(Locale.US) ?: ""
+        return (host == "google.com" || host.endsWith(".google.com") ||
+            host == "bing.com" || host.endsWith(".bing.com") ||
+            host == "search.yahoo.com" ||
+            host == "duckduckgo.com" || host.endsWith(".duckduckgo.com") ||
+            host == "search.brave.com" ||
+            host.endsWith(".yandex.com") || host.endsWith(".yandex.ru")) &&
+            (path.contains("search") || uri.getQueryParameter("q") != null)
+    }
+
+    private fun applyVisitedSearchResultColors(webView: WebView) {
+        val url = webView.url ?: return
+        if (!isSearchResultsPage(url)) return
+
+        val visitedJson = VisitedSites.allVisitedUrlsJson(this)
+        val quotedJson = JSONObject.quote(visitedJson)
+
+        val js = """
+            (function(visitedRaw) {
+                try {
+                    var visited = JSON.parse(visitedRaw || '{}');
+                    var CYAN = '#00FFFF';
+                    var GRAY = '#808080';
+
+                    function normalize(u) {
+                        try {
+                            var x = new URL(u, location.href);
+                            if (x.protocol !== 'http:' && x.protocol !== 'https:') return '';
+                            x.hash = '';
+                            var s = x.toString();
+                            return s.endsWith('/') ? s.slice(0, -1) : s;
+                        } catch (e) {
+                            return '';
+                        }
+                    }
+
+                    function unwrapGoogle(u) {
+                        try {
+                            var x = new URL(u, location.href);
+                            if ((x.hostname === 'google.com' || x.hostname.endsWith('.google.com')) &&
+                                x.pathname === '/url') {
+                                return x.searchParams.get('q') || x.searchParams.get('url') || u;
+                            }
+                        } catch (e) {}
+                        return u;
+                    }
+
+                    function isVisited(u) {
+                        var n = normalize(unwrapGoogle(u));
+                        if (!n) return false;
+                        if (visited[n]) return true;
+                        var alt = n.endsWith('/') ? n.slice(0, -1) : n + '/';
+                        return !!visited[alt];
+                    }
+
+                    function styleResults() {
+                        var links = document.querySelectorAll('a[href]');
+                        for (var i = 0; i < links.length; i++) {
+                            var a = links[i];
+                            var href = a.href || a.getAttribute('href') || '';
+                            if (!/^https?:/i.test(href)) continue;
+                            var linkUrl;
+                            try { linkUrl = new URL(href); } catch (e) { continue; }
+                            var currentHost = location.hostname.toLowerCase();
+                            if (linkUrl.hostname.toLowerCase() === currentHost) continue;
+                            if (!String(a.innerText || a.textContent || '').trim()) continue;
+
+                            var color = isVisited(href) ? GRAY : CYAN;
+                            a.style.setProperty('color', color, 'important');
+                            a.querySelectorAll('*').forEach(function(child) {
+                                child.style.setProperty('color', color, 'important');
+                            });
+                        }
+                    }
+
+                    styleResults();
+
+                    if (!window.__downls10VisitedColorObserver) {
+                        window.__downls10VisitedColorObserver = true;
+                        var timer = null;
+                        var rerun = function() {
+                            clearTimeout(timer);
+                            timer = setTimeout(styleResults, 120);
+                        };
+                        new MutationObserver(rerun).observe(document.documentElement, {
+                            childList: true, subtree: true
+                        });
+                        window.addEventListener('pageshow', styleResults);
+                    }
+                } catch (e) {}
+            })($quotedJson);
+        """
+        webView.evaluateJavascript(js, null)
     }
 
     private fun recordVisitedNavigation(url: String?) {
@@ -1516,7 +1625,7 @@ class BrowserActivity : Activity() {
                     }
                     val titleText = TextView(this).apply {
                         text = bookmark.title
-                        setTextColor(Color.parseColor("#808080"))
+                        setTextColor(Color.WHITE)
                         textSize = 15f
                         layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                         setOnClickListener {
@@ -1868,23 +1977,80 @@ class BrowserActivity : Activity() {
     // 5) تكبير/تصغير الخط
     private fun showFontZoomDialog() {
         val current = savedFontZoom()
-        AlertDialog.Builder(this)
-            .setTitle("حجم الخط: ${current}%")
-            .setPositiveButton("تكبير +") { _, _ ->
-                val value = (currentWebView().settings.textZoom + 20).coerceAtMost(300)
-                currentWebView().settings.textZoom = value
-                saveFontZoom(value)
+
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(24, 8, 24, 8)
+        }
+
+        val sizeText = TextView(this).apply {
+            text = "حجم الخط: ${current}%"
+            setTextColor(Color.WHITE)
+            textSize = 22f
+            gravity = Gravity.CENTER
+            setPadding(0, 8, 0, 20)
+        }
+
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+
+        val decrease = Button(this).apply {
+            text = "تصغير -"
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val increase = Button(this).apply {
+            text = "تكبير +"
+            layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        controls.addView(decrease)
+        controls.addView(increase)
+
+        val close = Button(this).apply {
+            text = "إغلاق"
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 16
             }
-            .setNegativeButton("تصغير -") { _, _ ->
-                val value = (currentWebView().settings.textZoom - 20).coerceAtLeast(50)
-                currentWebView().settings.textZoom = value
-                saveFontZoom(value)
-            }
-            .setNeutralButton("100%") { _, _ ->
-                currentWebView().settings.textZoom = 100
-                saveFontZoom(100)
-            }
-            .show()
+        }
+
+        root.addView(sizeText)
+        root.addView(controls)
+        root.addView(close)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("تكبير/تصغير الخط")
+            .setView(root)
+            .create()
+
+        fun applyZoom(value: Int) {
+            val zoom = value.coerceIn(50, 200)
+            currentWebView().settings.textZoom = zoom
+            saveFontZoom(zoom)
+            sizeText.text = "حجم الخط: ${zoom}%"
+        }
+
+        decrease.setOnClickListener {
+            val currentValue = currentWebView().settings.textZoom.coerceIn(50, 200)
+            applyZoom(currentValue - 10)
+        }
+
+        increase.setOnClickListener {
+            val currentValue = currentWebView().settings.textZoom.coerceIn(50, 200)
+            applyZoom(currentValue + 10)
+        }
+
+        close.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 
     // 6) السجل
@@ -1905,7 +2071,7 @@ class BrowserActivity : Activity() {
             val displayText = entry.title.ifBlank { entry.url }
             val row = TextView(this).apply {
                 text = displayText
-                setTextColor(Color.parseColor("#808080"))
+                setTextColor(Color.WHITE)
                 textSize = 14f
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
@@ -1985,7 +2151,7 @@ class BrowserActivity : Activity() {
                 val tabUrl = if (tab.isHome) null else tab.webView.url
                 val titleText = TextView(this).apply {
                     text = if (index == currentTabIndex) "● $label" else label
-                    setTextColor(if (tab.isHome) Color.WHITE else visitedSiteColor(tabUrl, Color.parseColor("#00FFFF")))
+                    setTextColor(if (tab.isHome) Color.WHITE else visitedSiteColor(tabUrl, Color.CYAN))
                     textSize = 15f
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                     setOnClickListener {
