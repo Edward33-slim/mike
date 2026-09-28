@@ -1118,13 +1118,33 @@ class BrowserActivity : Activity() {
         val uri = try { Uri.parse(url) } catch (e: Exception) { return false }
         val host = uri.host?.lowercase(Locale.US) ?: return false
         val path = uri.path?.lowercase(Locale.US) ?: ""
-        return (host == "google.com" || host.endsWith(".google.com") ||
+
+        // محركات البحث المعروفة، بما فيها نطاقات Google المحلية مثل google.iq وgoogle.ae.
+        val knownSearchHost =
+            host == "google.com" || host.startsWith("google.") || host.endsWith(".google.com") ||
             host == "bing.com" || host.endsWith(".bing.com") ||
             host == "search.yahoo.com" ||
             host == "duckduckgo.com" || host.endsWith(".duckduckgo.com") ||
             host == "search.brave.com" ||
-            host.endsWith(".yandex.com") || host.endsWith(".yandex.ru")) &&
-            (path.contains("search") || uri.getQueryParameter("q") != null)
+            host.endsWith(".yandex.com") || host.endsWith(".yandex.ru") ||
+            host == "search.aol.com" ||
+            host == "search.naver.com" ||
+            host == "www.ecosia.org" ||
+            host == "search.qwant.com"
+
+        if (knownSearchHost) {
+            return path.contains("search") ||
+                uri.getQueryParameter("q") != null ||
+                uri.getQueryParameter("query") != null ||
+                uri.getQueryParameter("p") != null ||
+                uri.getQueryParameter("text") != null
+        }
+
+        // دعم محركات البحث الأخرى التي تستخدم صفحة /search أو معاملات البحث الشائعة.
+        return path == "/search" || path.startsWith("/search/") ||
+            uri.getQueryParameter("q") != null ||
+            uri.getQueryParameter("query") != null ||
+            uri.getQueryParameter("search_query") != null
     }
 
     private fun applyVisitedSearchResultColors(webView: WebView) {
@@ -1141,7 +1161,6 @@ class BrowserActivity : Activity() {
                 try {
                     var visitedUrls = JSON.parse(visitedUrlsRaw || '{}');
                     var visitedHosts = JSON.parse(visitedHostsRaw || '{}');
-                    var SKY = '#87CEFA';
                     var PURPLE = '#800080';
 
                     function normalize(u) {
@@ -1159,8 +1178,8 @@ class BrowserActivity : Activity() {
                     function unwrapGoogle(u) {
                         try {
                             var x = new URL(u, location.href);
-                            if ((x.hostname === 'google.com' || x.hostname.endsWith('.google.com')) &&
-                                x.pathname === '/url') {
+                            if ((x.hostname === 'google.com' || x.hostname.startsWith('google.') ||
+                                x.hostname.endsWith('.google.com')) && x.pathname === '/url') {
                                 return x.searchParams.get('q') || x.searchParams.get('url') || u;
                             }
                         } catch (e) {}
@@ -1186,12 +1205,6 @@ class BrowserActivity : Activity() {
                         return !!visitedUrls[alt];
                     }
 
-                    function restoreOriginalColor(element) {
-                        // لا نفرض أي لون على الرابط غير المفتوح؛ إزالة اللون المضاف
-                        // تسمح لـ CSS الأصلي للموقع/محرك البحث بالظهور كما هو.
-                        element.style.removeProperty('color');
-                    }
-
                     function styleResults() {
                         var links = document.querySelectorAll('a[href]');
                         for (var i = 0; i < links.length; i++) {
@@ -1205,16 +1218,16 @@ class BrowserActivity : Activity() {
                             if (!String(a.innerText || a.textContent || '').trim()) continue;
 
                             if (isVisited(href)) {
+                                // الموقع الذي سبق فتحه: بنفسجي.
+                                // نطبق اللون على الرابط وكل النصوص داخله حتى لا يعيده CSS الخاص
+                                // بمحرك البحث إلى لون آخر.
                                 a.style.setProperty('color', PURPLE, 'important');
                                 a.querySelectorAll('*').forEach(function(child) {
                                     child.style.setProperty('color', PURPLE, 'important');
                                 });
-                            } else {
-                                a.style.setProperty('color', SKY, 'important');
-                                a.querySelectorAll('*').forEach(function(child) {
-                                    child.style.setProperty('color', SKY, 'important');
-                                });
                             }
+                            // الموقع غير المفتوح: لا نغيّر شيئًا، فيبقى لونه الأصلي
+                            // الذي يحدده محرك البحث أو الموقع.
                         }
                     }
 
