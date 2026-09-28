@@ -108,6 +108,13 @@ class BrowserActivity : Activity() {
     private val PREFS = "browser_settings"
     private fun settingsPrefs() = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private fun savedFontZoom(): Int =
+        settingsPrefs().getInt("fontZoom", 100).coerceIn(50, 300)
+
+    private fun saveFontZoom(value: Int) {
+        settingsPrefs().edit().putInt("fontZoom", value.coerceIn(50, 300)).apply()
+    }
+
     private fun cameraAllowed() = settingsPrefs().getBoolean("camera", false)
     private fun micAllowed() = settingsPrefs().getBoolean("mic", false)
     private fun locationAllowed() = settingsPrefs().getBoolean("location", false)
@@ -261,7 +268,11 @@ class BrowserActivity : Activity() {
     }
 
     private fun handleOpenUrlIntent(intent: Intent?) {
-        val url = intent?.getStringExtra(EXTRA_OPEN_URL)
+        val extraUrl = intent?.getStringExtra(EXTRA_OPEN_URL)
+        val dataUrl = intent?.data?.toString()
+        val url = extraUrl?.takeIf { it.isNotBlank() }
+            ?: dataUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+
         if (!url.isNullOrBlank()) {
             createBrowsingTab(url)
         }
@@ -704,6 +715,7 @@ class BrowserActivity : Activity() {
         if (nightMode) webView.setBackgroundColor(Color.BLACK)
         webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
         val settings = webView.settings
+        settings.textZoom = savedFontZoom()
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
         settings.loadWithOverviewMode = true
@@ -1415,23 +1427,16 @@ class BrowserActivity : Activity() {
      * بقاء التطبيق مفتوحاً أو على حالة WebView الحالية.
      */
     /**
-     * يحافظ على ألوان المواقع نفسها داخل الصفحات العادية.
-     * في صفحات نتائج البحث فقط نستخدم ألوان DownLS10 الخاصة بالروابط:
-     * غير المزار = سماوي، والمزار = بنفسجي ثابت ومحفوظ.
+     * يحافظ على لون الرابط الأصلي إذا لم يكن الموقع قد زاره المستخدم.
+     * إذا كان نطاق الرابط قد تمت زيارته سابقًا، يُعرض الرابط بالرمادي.
+     * هذا يعمل في نتائج البحث وفي صفحات المواقع، وليس مع Google فقط.
      */
     private fun applyVisitedLinksJs(webView: WebView) {
         val currentUrl = webView.url ?: return
-        val currentHost = try { Uri.parse(currentUrl).host?.lowercase(Locale.US)?.removePrefix("www.") } catch (_: Exception) { null }
+        val currentHost = try {
+            Uri.parse(currentUrl).host?.lowercase(Locale.US)?.removePrefix("www.")
+        } catch (_: Exception) { null }
         if (currentHost.isNullOrBlank()) return
-
-        // داخل المواقع نترك ألوان الموقع الأصلية بالكامل.
-        // تطبيق الرمادي يكون فقط على نتائج البحث للمواقع التي تمت زيارتها.
-        val isSearchPage = currentHost.contains("google.") ||
-            currentHost == "google.com" ||
-            currentHost.contains("bing.") ||
-            currentHost.contains("yahoo.") ||
-            currentHost.contains("duckduckgo.")
-        if (!isSearchPage) return
 
         val visitedJson = VisitedSites.asJsonForInjection(this)
         val js = """
@@ -1459,7 +1464,6 @@ class BrowserActivity : Activity() {
                             var linkUrl = new URL(href);
                             host = normalizeHost(linkUrl.hostname);
 
-                            // Search engines may wrap the real result URL in q/url/u.
                             if (host.indexOf('google.') >= 0 ||
                                 host.indexOf('bing.') >= 0 ||
                                 host.indexOf('yahoo.') >= 0 ||
@@ -1917,16 +1921,22 @@ class BrowserActivity : Activity() {
 
     // 5) تكبير/تصغير الخط
     private fun showFontZoomDialog() {
+        val current = savedFontZoom()
         AlertDialog.Builder(this)
-            .setTitle("حجم الخط: ${currentWebView().settings.textZoom}%")
+            .setTitle("حجم الخط: ${current}%")
             .setPositiveButton("تكبير +") { _, _ ->
-                currentWebView().settings.textZoom = (currentWebView().settings.textZoom + 20).coerceAtMost(300)
+                val value = (currentWebView().settings.textZoom + 20).coerceAtMost(300)
+                currentWebView().settings.textZoom = value
+                saveFontZoom(value)
             }
             .setNegativeButton("تصغير -") { _, _ ->
-                currentWebView().settings.textZoom = (currentWebView().settings.textZoom - 20).coerceAtLeast(50)
+                val value = (currentWebView().settings.textZoom - 20).coerceAtLeast(50)
+                currentWebView().settings.textZoom = value
+                saveFontZoom(value)
             }
-            .setNeutralButton("إعادة الضبط") { _, _ ->
+            .setNeutralButton("100%") { _, _ ->
                 currentWebView().settings.textZoom = 100
+                saveFontZoom(100)
             }
             .show()
     }
