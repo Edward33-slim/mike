@@ -36,7 +36,6 @@ object AdBlocker {
     val LISTS = listOf(
         BlockListDef("stevenblack", "StevenBlack", "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts", ListFormat.HOSTS, ListCategory.AD),
         BlockListDef("ubo_resource_abuse", "uBlock Origin - Resource Abuse", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/resource-abuse.txt", ListFormat.ABP, ListCategory.AD),
-        BlockListDef("ubo_unbreak", "uBlock Origin - Unbreak", "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/unbreak.txt", ListFormat.ABP, ListCategory.AD),
         BlockListDef("pgl", "PGL (Peter Lowe)", "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext", ListFormat.HOSTS, ListCategory.AD),
         BlockListDef("nocoin", "NoCoin", "https://raw.githubusercontent.com/hoshsadiq/adblock-nocoin-list/master/hosts.txt", ListFormat.HOSTS, ListCategory.AD),
         BlockListDef(
@@ -56,7 +55,7 @@ object AdBlocker {
         BlockListDef("risk", "مواقع مشبوهة (Risk)", "https://raw.githubusercontent.com/FadeMind/hosts.extras/master/add.Risk/hosts", ListFormat.HOSTS, ListCategory.RISK)
     )
 
-    private val REMOVED_LIST_IDS = arrayOf("adguard_base", "nextdns_cname")
+    private val REMOVED_LIST_IDS = arrayOf("adguard_base", "nextdns_cname", "ubo_unbreak")
 
     /** يحذف نهائياً بيانات القوائم التي أزيلت من التطبيق حتى لا تبقى في التخزين المحلي. */
     fun cleanupRemovedLists(context: Context) {
