@@ -687,26 +687,34 @@ object DownloadsRepository {
 
     private fun createPendingDownload(context: Context, fileName: String): Uri? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(MediaStore.MediaColumns.MIME_TYPE, mimeTypeFor(fileName))
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/")
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        val resolver = context.contentResolver
+        val mime = mimeTypeFor(fileName)
+
+        fun values(type: String, includeRelativePath: Boolean = true): ContentValues =
+            ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, type)
+                if (includeRelativePath) {
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/")
+                }
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+
+        // بعض Android 10/ROMs ترفض MIME معيّناً أو تفشل في إدراج العنصر في
+        // مجموعة Downloads رغم أن التخزين متاح. نجرب أكثر من مسار آمن قبل الفشل.
+        val attempts = listOf<() -> Uri?>(
+            { resolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values(mime)) },
+            { resolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values("application/octet-stream")) },
+            { resolver.insert(MediaStore.Files.getContentUri("external"), values(mime)) },
+            { resolver.insert(MediaStore.Files.getContentUri("external"), values("application/octet-stream")) },
+            { resolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values(mime, includeRelativePath = false)) }
+        )
+
+        for (attempt in attempts) {
+            val uri = runCatching { attempt() }.getOrNull()
+            if (uri != null) return uri
         }
-        return runCatching {
-            val resolver = context.contentResolver
-            resolver.insert(
-                MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
-                values
-            ) ?: if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                // بعض أجهزة Android 10/ROMs لا تعيد URI من مجموعة Downloads،
-                // فنستخدم مجموعة Files مع نفس مجلد Download كمسار احتياطي.
-                resolver.insert(
-                    MediaStore.Files.getContentUri("external"),
-                    values
-                )
-            } else null
-        }.getOrNull()
+        return null
     }
 
     private fun publishDownload(context: Context, uri: Uri) {
