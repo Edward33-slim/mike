@@ -269,12 +269,28 @@ class BrowserActivity : Activity() {
     }
 
     private fun handleOpenUrlIntent(intent: Intent?) {
-        val extraUrl = intent?.getStringExtra(EXTRA_OPEN_URL)
-        val dataUrl = intent?.data?.toString()
-        val url = extraUrl?.takeIf { it.isNotBlank() }
-            ?: dataUrl?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+        if (intent == null) return
+
+        // الروابط القادمة من التطبيقات الأخرى (ومنها ChatGPT) تصل عادةً كـ ACTION_VIEW
+        // مع URI في data. نفتحها دائمًا في تبويب جديد بدل استبدال التبويب الحالي.
+        val extraUrl = intent.getStringExtra(EXTRA_OPEN_URL)
+        val dataUrl = intent.data?.toString()
+        val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
+
+        val url = listOf(extraUrl, dataUrl, sharedText)
+            .asSequence()
+            .mapNotNull { it?.trim()?.takeIf { value -> value.isNotBlank() } }
+            .mapNotNull { value ->
+                when {
+                    value.startsWith("http://") || value.startsWith("https://") -> value
+                    else -> null
+                }
+            }
+            .firstOrNull()
 
         if (!url.isNullOrBlank()) {
+            // كل رابط خارجي يفتح تبويبًا جديدًا، سواء وصل من ChatGPT أو WhatsApp أو Telegram
+            // أو أي تطبيق آخر يدعم روابط الويب.
             createBrowsingTab(url)
         }
     }
