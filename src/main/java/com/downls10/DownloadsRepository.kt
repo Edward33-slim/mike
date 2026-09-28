@@ -700,14 +700,20 @@ object DownloadsRepository {
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
 
-        // بعض Android 10/ROMs ترفض MIME معيّناً أو تفشل في إدراج العنصر في
-        // مجموعة Downloads رغم أن التخزين متاح. نجرب أكثر من مسار آمن قبل الفشل.
+        // بعض أجهزة Android 10/ROMs لا تتعامل مع مسار MediaStore واحد بشكل ثابت.
+        // نجرب مجموعتي Downloads و Files، مع وبدون RELATIVE_PATH، ثم المسار القديم
+        // الخاص بـ Downloads، حتى لا يفشل إنشاء الملف بعد موافقة المستخدم على التنزيل.
         val attempts = listOf<() -> Uri?>(
             { resolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values(mime)) },
             { resolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values("application/octet-stream")) },
+            { resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values(mime)) },
+            { resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values("application/octet-stream")) },
             { resolver.insert(MediaStore.Files.getContentUri("external"), values(mime)) },
             { resolver.insert(MediaStore.Files.getContentUri("external"), values("application/octet-stream")) },
-            { resolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values(mime, includeRelativePath = false)) }
+            { resolver.insert(MediaStore.Files.getContentUri("external"), values(mime, includeRelativePath = false)) },
+            { resolver.insert(MediaStore.Files.getContentUri("external"), values("application/octet-stream", includeRelativePath = false)) },
+            { resolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values(mime, includeRelativePath = false)) },
+            { resolver.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values("application/octet-stream", includeRelativePath = false)) }
         )
 
         for (attempt in attempts) {
@@ -716,7 +722,6 @@ object DownloadsRepository {
         }
         return null
     }
-
     private fun publishDownload(context: Context, uri: Uri) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
         val values = ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }
@@ -749,10 +754,16 @@ object DownloadsRepository {
     }
 
     private fun sanitizeFileName(name: String): String {
-        val cleaned = name.replace(Regex("""[\\\\/:*?"<>|\\r\\n]"""), "_").trim()
-        return if (cleaned.isNotEmpty()) cleaned.take(180) else "file_${System.currentTimeMillis()}.bin"
+        // لا تستخدم Regex هنا حتى لا تتأثر الأحرف السليمة بتعبير \r\n.
+        // نبدّل فقط محارف أسماء الملفات غير المسموح بها ونحافظ على الاسم الحقيقي.
+        val invalid = charArrayOf('\\', '/', ':', '*', '?', '"', '<', '>', '|', '\r', '\n')
+        val builder = StringBuilder(name.length)
+        for (ch in name.trim()) {
+            builder.append(if (ch.code < 32 || invalid.contains(ch)) '_' else ch)
+        }
+        val cleaned = builder.toString().trim()
+        return if (cleaned.isNotEmpty()) cleaned.take(180) else "file_" + System.currentTimeMillis() + ".bin"
     }
-
     /** يستخرج الاسم المقترح من Content-Disposition أو يعود لاسم الرابط. */
     fun fileNameFromContentDisposition(contentDisposition: String?, url: String): String {
         return fileNameFromContentDispositionOrNull(contentDisposition) ?: extractFileName(url)
