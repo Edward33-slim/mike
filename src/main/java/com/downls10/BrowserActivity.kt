@@ -874,6 +874,7 @@ class BrowserActivity : Activity() {
                 }
 
                 if (isSearchResultsPage(url)) {
+                    // الحالة مبنية على سجل دائم، لذلك تبقى الألوان بعد الرجوع وإعادة فتح التطبيق.
                     applyVisitedSearchResultColors(view)
                     mainHandler.postDelayed({
                         if (!isFinishing && !isDestroyed && isSearchResultsPage(view.url)) {
