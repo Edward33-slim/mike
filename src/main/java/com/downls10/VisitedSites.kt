@@ -79,4 +79,7 @@ object VisitedSites {
 
     /** يرجع كل النطاقات المزارة مع تاريخ أول زيارة، بصيغة JSON جاهزة للحقن بالـ JavaScript */
     fun asJsonForInjection(context: Context): String = readMap(context).toString()
+
+    /** يرجع كل الروابط الكاملة المزارة، مجمعة حسب النطاق، بصيغة JSON. */
+    fun allVisitedUrlsJson(context: Context): String = readUrlsMap(context).toString()
 }
