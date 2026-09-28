@@ -1,10 +1,14 @@
 name: 🧹 Delete All Actions Runs
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   actions: write
+  contents: write
 
 jobs:
   cleanup:
@@ -18,40 +22,49 @@ jobs:
         run: |
           set -euo pipefail
 
-          page=1
-
           while true; do
             runs="$(curl -fsSL \
               -H "Accept: application/vnd.github+json" \
               -H "Authorization: Bearer $GH_TOKEN" \
               -H "X-GitHub-Api-Version: 2026-03-10" \
-              "https://api.github.com/repos/$REPO/actions/runs?per_page=100&page=$page")"
+              "https://api.github.com/repos/$REPO/actions/runs?per_page=100&page=1")"
 
-            count="$(echo "$runs" | jq '.workflow_runs | length')"
+            ids="$(echo "$runs" | jq -r --arg current "$CURRENT_RUN_ID" '.workflow_runs[].id | tostring | select(. != $current)')"
 
-            if [ "$count" -eq 0 ]; then
+            if [ -z "$ids" ]; then
+              echo "No previous workflow runs remain."
               break
             fi
 
-            echo "$runs" | jq -r '.workflow_runs[].id' | while read -r run_id; do
-              if [ "$run_id" = "$CURRENT_RUN_ID" ]; then
-                echo "Skipping current run: $run_id"
-                continue
-              fi
-
+            for run_id in $ids; do
               echo "Deleting workflow run: $run_id"
-
               curl -fsSL -X DELETE \
                 -H "Accept: application/vnd.github+json" \
                 -H "Authorization: Bearer $GH_TOKEN" \
                 -H "X-GitHub-Api-Version: 2026-03-10" \
                 "https://api.github.com/repos/$REPO/actions/runs/$run_id"
-
-              echo "Deleted: $run_id"
             done
-
-            page=$((page + 1))
           done
 
-          echo "All previous workflow runs have been deleted."
-          echo "The current run is intentionally kept because it is still running."
+      - name: Delete this temporary workflow file
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          sha="$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "https://api.github.com/repos/$REPO/contents/.github/workflows/delete-all-actions.yml" \
+            | jq -r '.sha')"
+
+          curl -fsSL -X DELETE \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "https://api.github.com/repos/$REPO/contents/.github/workflows/delete-all-actions.yml" \
+            -d "$(jq -n --arg message "Remove temporary Actions cleanup workflow" --arg sha "$sha" '{message:$message,sha:$sha}')"
+
+          echo "Temporary cleanup workflow deleted."
