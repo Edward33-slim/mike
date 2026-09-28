@@ -1138,7 +1138,8 @@ class BrowserActivity : Activity() {
             (function(visitedRaw) {
                 try {
                     var visited = JSON.parse(visitedRaw || '{}');
-                    var GRAY = '#808080';
+                    var SKY = '#87CEFA';
+                    var PURPLE = '#800080';
 
                     function normalize(u) {
                         try {
@@ -1190,14 +1191,14 @@ class BrowserActivity : Activity() {
                             if (!String(a.innerText || a.textContent || '').trim()) continue;
 
                             if (isVisited(href)) {
-                                a.style.setProperty('color', GRAY, 'important');
+                                a.style.setProperty('color', PURPLE, 'important');
                                 a.querySelectorAll('*').forEach(function(child) {
-                                    child.style.setProperty('color', GRAY, 'important');
+                                    child.style.setProperty('color', PURPLE, 'important');
                                 });
                             } else {
-                                restoreOriginalColor(a);
+                                a.style.setProperty('color', SKY, 'important');
                                 a.querySelectorAll('*').forEach(function(child) {
-                                    restoreOriginalColor(child);
+                                    child.style.setProperty('color', SKY, 'important');
                                 });
                             }
                         }
