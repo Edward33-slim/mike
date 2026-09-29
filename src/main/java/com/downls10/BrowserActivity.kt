@@ -78,6 +78,10 @@ class BrowserActivity : Activity() {
 
     companion object {
         const val EXTRA_OPEN_URL = "extra_open_url"
+        private const val SEARCH_PROVIDER_KEY = "searchProvider"
+        private const val SEARCH_SEARXNG = "searxng"
+        private const val SEARCH_CUSTOM = "custom"
+        private const val SEARCH_GOOGLE = "google"
     }
 
     private lateinit var webViewContainer: FrameLayout
@@ -108,13 +112,6 @@ class BrowserActivity : Activity() {
 
     private val PREFS = "browser_settings"
     private fun settingsPrefs() = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-
-    private companion object {
-        const val SEARCH_PROVIDER_KEY = "searchProvider"
-        const val SEARCH_SEARXNG = "searxng"
-        const val SEARCH_CUSTOM = "custom"
-        const val SEARCH_GOOGLE = "google"
-    }
 
     private fun selectedSearchProvider(): String =
         settingsPrefs().getString(SEARCH_PROVIDER_KEY, SEARCH_GOOGLE) ?: SEARCH_GOOGLE
