@@ -109,6 +109,20 @@ class BrowserActivity : Activity() {
     private val PREFS = "browser_settings"
     private fun settingsPrefs() = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
+    private companion object {
+        const val SEARCH_PROVIDER_KEY = "searchProvider"
+        const val SEARCH_SEARXNG = "searxng"
+        const val SEARCH_CUSTOM = "custom"
+        const val SEARCH_GOOGLE = "google"
+    }
+
+    private fun selectedSearchProvider(): String =
+        settingsPrefs().getString(SEARCH_PROVIDER_KEY, SEARCH_GOOGLE) ?: SEARCH_GOOGLE
+
+    private fun saveSearchProvider(provider: String) {
+        settingsPrefs().edit().putString(SEARCH_PROVIDER_KEY, provider).apply()
+    }
+
     private fun savedFontZoom(): Int =
         settingsPrefs().getInt("fontZoom", 100).coerceIn(50, 200)
 
@@ -1437,6 +1451,7 @@ class BrowserActivity : Activity() {
             "السجل",
             "ترجمة إلى العربية",
             "الأذونات",
+            "البحث",
             if (nightMode) "إيقاف الوضع الليلي" else "تفعيل الوضع الليلي"
         )
 
@@ -1453,9 +1468,31 @@ class BrowserActivity : Activity() {
                     6 -> showHistoryDialog()
                     7 -> runTranslate()
                     8 -> showPermissionsDialog()
-                    9 -> toggleNightMode()
+                    9 -> showSearchProviderDialog()
+                    10 -> toggleNightMode()
                 }
             }
+            .show()
+    }
+
+    private fun showSearchProviderDialog() {
+        val providers = arrayOf(
+            SEARCH_SEARXNG to "بحث SearXNG",
+            SEARCH_CUSTOM to "بحث مخصص",
+            SEARCH_GOOGLE to "Google"
+        )
+        val selected = selectedSearchProvider()
+        val items = providers.map { (id, label) ->
+            if (id == selected) "$label    ✅" else label
+        }.toTypedArray()
+
+        AlertDialog.Builder(this)
+            .setTitle("البحث")
+            .setItems(items) { dialog, which ->
+                saveSearchProvider(providers[which].first)
+                dialog.dismiss()
+            }
+            .setNegativeButton("إغلاق", null)
             .show()
     }
 
