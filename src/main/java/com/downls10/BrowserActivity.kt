@@ -82,7 +82,11 @@ class BrowserActivity : Activity() {
         private const val SEARCH_SEARXNG = "searxng"
         private const val SEARCH_CUSTOM = "custom"
         private const val SEARCH_GOOGLE = "google"
+        private const val CUSTOM_SEARCH_URL_KEY = "customSearchUrl"
         private const val SEARXNG_SEARCH_BASE = "https://searx.ononoki.org/search?q="
+        // SearXNG bang modifiers explicitly select non-Bing web engines.
+        // SearXNG's ! syntax is inclusive, so Bing is not selected here.
+        private const val SEARXNG_ENGINE_PREFIX = "!ddg !br !qw !yh "
     }
 
     private lateinit var webViewContainer: FrameLayout
@@ -119,6 +123,13 @@ class BrowserActivity : Activity() {
 
     private fun saveSearchProvider(provider: String) {
         settingsPrefs().edit().putString(SEARCH_PROVIDER_KEY, provider).apply()
+    }
+
+    private fun customSearchTemplate(): String =
+        settingsPrefs().getString(CUSTOM_SEARCH_URL_KEY, "")?.trim() ?: ""
+
+    private fun saveCustomSearchTemplate(template: String) {
+        settingsPrefs().edit().putString(CUSTOM_SEARCH_URL_KEY, template.trim()).apply()
     }
 
     private fun savedFontZoom(): Int =
@@ -904,9 +915,11 @@ class BrowserActivity : Activity() {
                 if (isSearchResultsPage(url)) {
                     // الحالة مبنية على سجل دائم، لذلك تبقى الألوان بعد الرجوع وإعادة فتح التطبيق.
                     applyVisitedSearchResultColors(view)
+                    filterSearxngMicrosoftResults(view)
                     mainHandler.postDelayed({
                         if (!isFinishing && !isDestroyed && isSearchResultsPage(view.url)) {
                             applyVisitedSearchResultColors(view)
+                            filterSearxngMicrosoftResults(view)
                         }
                     }, 700L)
                 }
@@ -1159,6 +1172,41 @@ class BrowserActivity : Activity() {
             uri.getQueryParameter("search_query") != null
     }
 
+    private fun filterSearxngMicrosoftResults(webView: WebView) {
+        val host = try {
+            Uri.parse(webView.url ?: "").host?.lowercase(Locale.US)
+        } catch (_: Exception) {
+            null
+        }
+        if (host != "searx.ononoki.org") return
+
+        val js = """
+            (function() {
+                try {
+                    var badHosts = ["bing.com", "microsoft.com"];
+
+                    function isBadHost(host) {
+                        host = String(host || "").toLowerCase().replace(/^www\./, "");
+                        return badHosts.some(function(b) {
+                            return host === b || host.endsWith("." + b);
+                        });
+                    }
+
+                    document.querySelectorAll('a[href]').forEach(function(a) {
+                        try {
+                            var u = new URL(a.href, location.href);
+                            if (!isBadHost(u.hostname)) return;
+
+                            var card = a.closest("article.result, .result, li.result");
+                            if (card) card.remove();
+                        } catch (e) {}
+                    });
+                } catch (e) {}
+            })();
+        """
+        webView.evaluateJavascript(js, null)
+    }
+
     private fun applyVisitedSearchResultColors(webView: WebView) {
         val url = webView.url ?: return
         if (!isSearchResultsPage(url)) return
@@ -1351,6 +1399,26 @@ class BrowserActivity : Activity() {
         return ext in fileExtensions
     }
 
+    private fun isModApkWarningHost(host: String): Boolean {
+        val h = host.lowercase(Locale.US).removePrefix("www.").removeSuffix(".")
+        val explicitHosts = setOf(
+            "modcda.com",
+            "apkstime.com",
+            "fastmodapk.com",
+            "meigeeks.com",
+            "pastebin.com",
+            "greatmodapk.com",
+            "downloadatoz.com"
+        )
+        if (explicitHosts.contains(h)) return true
+
+        // تحذير استباقي للمواقع التي تحمل نمطاً واضحاً لمواقع MOD/APK.
+        return h.contains("modapk") ||
+            h.contains("apkmod") ||
+            h.contains("mod-cda") ||
+            h.contains("modcda")
+    }
+
     private fun navigateWithSafetyCheck(webView: WebView, rawUrl: String) {
         // روابط magnet وftp لا يفتحها المتصفح: تذهب لمدير التنزيل
         val lowerUrl = rawUrl.trim().lowercase()
@@ -1383,32 +1451,48 @@ class BrowserActivity : Activity() {
         val host = uri?.host
 
         if (host != null) {
+            val normalizedHost = host.lowercase(Locale.US).removePrefix("www.")
             val match = AdBlocker.matchSafetyCategory(this, host)
-            if (match != null) {
-                when (match.category) {
-                    ListCategory.PORN -> {
-                        showBlockedInterstitial(webView, "هذا موقع إباحي وتم حجبه")
-                        return
-                    }
-                    ListCategory.MALWARE, ListCategory.PHISHING, ListCategory.RISK -> {
-                        val label = when (match.category) {
-                            ListCategory.MALWARE -> "⚠️ هذا الموقع مصنّف كموقع ضار / يوزّع برمجيات خبيثة"
-                            ListCategory.PHISHING -> "⚠️ هذا الموقع مصنّف كموقع تصيّد احتيالي - لا تُدخل بيانات حساباتك"
-                            else -> "⚠️ هذا الموقع مصنّف كموقع مشبوه"
-                        }
-                        AlertDialog.Builder(this)
-                            .setTitle("تحذير أمان")
-                            .setMessage(label)
-                            .setPositiveButton("متابعة على مسؤوليتي") { _, _ ->
-                                lastConfirmedSafetyUrl = rawUrl
-                                loadAndRecord(webView, rawUrl)
-                            }
-                            .setNegativeButton("رجوع", null)
-                            .show()
-                        return
-                    }
-                    ListCategory.AD -> { /* لا يحدث هنا */ }
+            val modApkWarning = isModApkWarningHost(normalizedHost)
+
+            if (match != null || modApkWarning) {
+                val warningParts = mutableListOf<String>()
+
+                if (modApkWarning) {
+                    warningParts.add(
+                        "⚠️ هذا الموقع من المواقع التي طلبتَ إظهار تحذير لها؛ " +
+                            "قد يحتوي على تطبيقات معدلة أو ملفات غير موثوقة. " +
+                            "يمكنك المتابعة إذا كنت تريد فتحه."
+                    )
                 }
+
+                if (match != null) {
+                    when (match.category) {
+                        ListCategory.PORN ->
+                            warningParts.add("⚠️ هذا الموقع موجود في قائمة المحتوى الإباحي.")
+                        ListCategory.MALWARE ->
+                            warningParts.add("⚠️ هذا الموقع موجود في قائمة المواقع المصنفة ببرمجيات خبيثة.")
+                        ListCategory.PHISHING ->
+                            warningParts.add("⚠️ هذا الموقع موجود في قائمة مواقع التصيد الاحتيالي.")
+                        ListCategory.RISK ->
+                            warningParts.add("⚠️ هذا الموقع موجود في قائمة المواقع المشبوهة.")
+                        ListCategory.AD -> Unit
+                    }
+                }
+
+                AlertDialog.Builder(this)
+                    .setTitle("تحذير قبل فتح الموقع")
+                    .setMessage(
+                        warningParts.joinToString("\n\n") +
+                            "\n\nهل تريد فتح هذا الموقع؟"
+                    )
+                    .setPositiveButton("متابعة") { _, _ ->
+                        lastConfirmedSafetyUrl = rawUrl
+                        loadAndRecord(webView, rawUrl)
+                    }
+                    .setNegativeButton("رفض", null)
+                    .show()
+                return
             }
         }
 
@@ -1462,8 +1546,26 @@ class BrowserActivity : Activity() {
     private fun buildSearchUrl(query: String): String {
         val encoded = Uri.encode(query)
         return when (selectedSearchProvider()) {
-            SEARCH_SEARXNG -> SEARXNG_SEARCH_BASE + encoded
-            SEARCH_CUSTOM -> ""
+            SEARCH_SEARXNG -> SEARXNG_SEARCH_BASE + Uri.encode(SEARXNG_ENGINE_PREFIX + query)
+            SEARCH_CUSTOM -> {
+                val template = customSearchTemplate()
+                if (template.isBlank()) {
+                    ""
+                } else {
+                    when {
+                        template.contains("{query}", ignoreCase = true) ->
+                            template.replace(Regex("\\{query\\}", RegexOption.IGNORE_CASE), encoded)
+                        template.contains("{q}", ignoreCase = true) ->
+                            template.replace(Regex("\\{q\\}", RegexOption.IGNORE_CASE), encoded)
+                        template.contains("%s") ->
+                            template.replace("%s", encoded)
+                        template.endsWith("?") || template.endsWith("&") ->
+                            template + "q=" + encoded
+                        else ->
+                            template + (if (template.contains("?")) "&" else "?") + "q=" + encoded
+                    }
+                }
+            }
             else -> "https://www.google.com/search?q=" + encoded
         }
     }
@@ -1548,10 +1650,48 @@ class BrowserActivity : Activity() {
         AlertDialog.Builder(this)
             .setTitle("البحث")
             .setItems(items) { dialog, which ->
-                saveSearchProvider(providers[which].first)
-                dialog.dismiss()
+                val provider = providers[which].first
+                if (provider == SEARCH_CUSTOM) {
+                    saveSearchProvider(provider)
+                    dialog.dismiss()
+                    showCustomSearchDialog()
+                } else {
+                    saveSearchProvider(provider)
+                    dialog.dismiss()
+                }
             }
             .setNegativeButton("إغلاق", null)
+            .show()
+    }
+
+    private fun showCustomSearchDialog() {
+        val input = EditText(this).apply {
+            setSingleLine(true)
+            setText(customSearchTemplate())
+            hint = "https://example.com/search?q={query}"
+            setPadding(24, 16, 24, 16)
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("إعداد البحث المخصص")
+            .setMessage(
+                "ضع رابط البحث الذي يحتوي على {query} أو {q} أو %s مكان كلمة البحث. " +
+                    "مثال: https://example.com/search?q={query}"
+            )
+            .setView(input)
+            .setPositiveButton("حفظ") { _, _ ->
+                val template = input.text.toString().trim()
+                if (template.isBlank()) {
+                    saveCustomSearchTemplate("")
+                    Toast.makeText(this, "تم مسح إعداد البحث المخصص", Toast.LENGTH_SHORT).show()
+                } else if (!template.startsWith("http://") && !template.startsWith("https://")) {
+                    Toast.makeText(this, "يجب أن يبدأ رابط البحث بـ http:// أو https://", Toast.LENGTH_LONG).show()
+                } else {
+                    saveCustomSearchTemplate(template)
+                    Toast.makeText(this, "تم حفظ البحث المخصص", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("إلغاء", null)
             .show()
     }
 
