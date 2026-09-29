@@ -49,6 +49,46 @@ object AdBlocker {
             "https://hostfiles.frogeye.fr/firstparty-trackers-hosts.txt",
             ListFormat.HOSTS, ListCategory.AD
         ),
+        BlockListDef(
+            "easylist_annoyances", "EasyList – Annoyances",
+            "https://ublockorigin.github.io/uAssets/thirdparties/easylist-annoyances.txt",
+            ListFormat.ABP, ListCategory.AD
+        ),
+        BlockListDef(
+            "fanboy_enhanced_tracking", "Fanboy’s Enhanced Tracking List",
+            "https://fanboy.co.nz/enhancedstats.txt",
+            ListFormat.ABP, ListCategory.AD
+        ),
+        BlockListDef(
+            "peter_lowe_ads_tracking", "Peter Lowe’s Ad and tracking server list",
+            "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=hosts&showintro=0&mimetype=plaintext",
+            ListFormat.HOSTS, ListCategory.AD
+        ),
+        BlockListDef(
+            "adguard_ads", "AdGuard – Ads",
+            "https://filters.adtidy.org/extension/ublock/filters/2_without_easylist.txt",
+            ListFormat.ABP, ListCategory.AD
+        ),
+        BlockListDef(
+            "adguard_mobile_ads", "AdGuard – Mobile Ads",
+            "https://filters.adtidy.org/extension/ublock/filters/11.txt",
+            ListFormat.ABP, ListCategory.AD
+        ),
+        BlockListDef(
+            "easylist", "EasyList",
+            "https://ublockorigin.github.io/uAssets/thirdparties/easylist.txt",
+            ListFormat.ABP, ListCategory.AD
+        ),
+        BlockListDef(
+            "ublock_filters_ads", "uBlock filters – Ads",
+            "https://ublockorigin.github.io/uAssets/filters/filters.txt",
+            ListFormat.ABP, ListCategory.AD
+        ),
+        BlockListDef(
+            "ublock_origin", "uBlock Origin",
+            "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters-2026.txt",
+            ListFormat.ABP, ListCategory.AD
+        ),
         BlockListDef("porn", "حجب المواقع الإباحية", "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn-only/hosts", ListFormat.HOSTS, ListCategory.PORN),
         BlockListDef("malware", "برمجيات خبيثة (URLhaus)", "https://urlhaus.abuse.ch/downloads/hostfile/", ListFormat.HOSTS, ListCategory.MALWARE),
         BlockListDef("phishing", "تصيّد احتيالي (OpenPhish)", "https://openphish.com/feed.txt", ListFormat.URL_LIST, ListCategory.PHISHING),
