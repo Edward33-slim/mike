@@ -82,6 +82,7 @@ class BrowserActivity : Activity() {
         private const val SEARCH_SEARXNG = "searxng"
         private const val SEARCH_CUSTOM = "custom"
         private const val SEARCH_GOOGLE = "google"
+        private const val SEARXNG_SEARCH_BASE = "https://searx.ononoki.org/search?q="
     }
 
     private lateinit var webViewContainer: FrameLayout
@@ -1458,13 +1459,29 @@ class BrowserActivity : Activity() {
         webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
     }
 
+    private fun buildSearchUrl(query: String): String {
+        val encoded = Uri.encode(query)
+        return when (selectedSearchProvider()) {
+            SEARCH_SEARXNG -> SEARXNG_SEARCH_BASE + encoded
+            SEARCH_CUSTOM -> ""
+            else -> "https://www.google.com/search?q=" + encoded
+        }
+    }
+
     private fun loadFromAddressBar() {
         var input = editUrl.text.toString().trim()
         if (input.isEmpty()) return
 
         input = when {
             Patterns.WEB_URL.matcher(input).matches() && !input.startsWith("http") -> "https://$input"
-            input.contains(" ") || !input.contains(".") -> "https://www.google.com/search?q=${Uri.encode(input)}"
+            input.contains(" ") || !input.contains(".") -> {
+                val searchUrl = buildSearchUrl(input)
+                if (searchUrl.isBlank()) {
+                    Toast.makeText(this, "البحث المخصص غير مهيأ بعد", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                searchUrl
+            }
             !input.startsWith("http://") && !input.startsWith("https://") -> "https://$input"
             else -> input
         }
@@ -2288,6 +2305,8 @@ class BrowserActivity : Activity() {
                     text = if (index == currentTabIndex) "● $label" else label
                     setTextColor(Color.WHITE)
                     textSize = 15f
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                     setOnClickListener {
                         switchToTab(index)
