@@ -1174,6 +1174,13 @@ class BrowserActivity : Activity() {
                     var visitedHosts = JSON.parse(visitedHostsRaw || '{}');
                     var PURPLE = '#800080';
 
+                    function normalizeHost(host) {
+                        return String(host || '')
+                            .toLowerCase()
+                            .replace(/^www\./, '')
+                            .replace(/\.$/, '');
+                    }
+
                     function normalize(u) {
                         try {
                             var x = new URL(u, location.href);
@@ -1189,9 +1196,13 @@ class BrowserActivity : Activity() {
                     function unwrapGoogle(u) {
                         try {
                             var x = new URL(u, location.href);
-                            if ((x.hostname === 'google.com' || x.hostname.startsWith('google.') ||
-                                x.hostname.endsWith('.google.com')) && x.pathname === '/url') {
-                                return x.searchParams.get('q') || x.searchParams.get('url') || u;
+                            var h = normalizeHost(x.hostname);
+                            if ((h === 'google.com' || h.endsWith('.google.com') || h.indexOf('google.') === 0) &&
+                                x.pathname === '/url') {
+                                return x.searchParams.get('q') ||
+                                       x.searchParams.get('url') ||
+                                       x.searchParams.get('u') ||
+                                       u;
                             }
                         } catch (e) {}
                         return u;
@@ -1202,18 +1213,34 @@ class BrowserActivity : Activity() {
                         var n = normalize(unwrapped);
                         if (!n) return false;
 
-                        // نعتمد أولاً على النطاق المزور: إذا فتح المستخدم أي صفحة
-                        // من الموقع، يجب أن تظهر كل نتائج ذلك الموقع كمزارة.
                         try {
-                            var host = new URL(unwrapped, location.href).hostname
-                                .toLowerCase().replace(/^www\./, '').replace(/\.$/, '');
-                            if (host && visitedHosts[host]) return true;
+                            var host = normalizeHost(new URL(unwrapped, location.href).hostname);
+                            if (host) {
+                                // تطابق النطاق نفسه، وكذلك النطاقات الفرعية للموقع.
+                                if (visitedHosts[host]) return true;
+                                var keys = Object.keys(visitedHosts);
+                                for (var i = 0; i < keys.length; i++) {
+                                    var visitedHost = normalizeHost(keys[i]);
+                                    if (visitedHost &&
+                                        (host === visitedHost ||
+                                         host.endsWith('.' + visitedHost) ||
+                                         visitedHost.endsWith('.' + host))) {
+                                        return true;
+                                    }
+                                }
+                            }
                         } catch (e) {}
 
-                        // ثم نتحقق من الرابط الكامل للتعامل مع الصفحات داخل نفس الموقع.
                         if (visitedUrls[n]) return true;
                         var alt = n.endsWith('/') ? n.slice(0, -1) : n + '/';
                         return !!visitedUrls[alt];
+                    }
+
+                    function paintVisited(element) {
+                        element.style.setProperty('color', PURPLE, 'important');
+                        element.querySelectorAll('*').forEach(function(child) {
+                            child.style.setProperty('color', PURPLE, 'important');
+                        });
                     }
 
                     function styleResults() {
@@ -1222,39 +1249,57 @@ class BrowserActivity : Activity() {
                             var a = links[i];
                             var href = a.href || a.getAttribute('href') || '';
                             if (!/^https?:/i.test(href)) continue;
+
                             var linkUrl;
-                            try { linkUrl = new URL(href); } catch (e) { continue; }
-                            var currentHost = location.hostname.toLowerCase();
-                            if (linkUrl.hostname.toLowerCase() === currentHost) continue;
+                            try { linkUrl = new URL(href, location.href); } catch (e) { continue; }
+
+                            var currentHost = normalizeHost(location.hostname);
+                            var resultHost = normalizeHost(linkUrl.hostname);
+                            if (resultHost === currentHost) continue;
+
                             if (!String(a.innerText || a.textContent || '').trim()) continue;
 
                             if (isVisited(href)) {
-                                // الموقع الذي سبق فتحه: بنفسجي.
-                                // نطبق اللون على الرابط وكل النصوص داخله حتى لا يعيده CSS الخاص
-                                // بمحرك البحث إلى لون آخر.
-                                a.style.setProperty('color', PURPLE, 'important');
-                                a.querySelectorAll('*').forEach(function(child) {
-                                    child.style.setProperty('color', PURPLE, 'important');
-                                });
+                                paintVisited(a);
                             }
-                            // الموقع غير المفتوح: لا نغيّر شيئًا، فيبقى لونه الأصلي
-                            // الذي يحدده محرك البحث أو الموقع.
+                            // غير المزور: لا نضع أي لون من التطبيق، حتى يبقى
+                            // اللون الأصلي الذي اختاره محرك البحث.
                         }
+                    }
+
+                    function scheduleStyle() {
+                        if (window.__downls10VisitedColorTimer) {
+                            clearTimeout(window.__downls10VisitedColorTimer);
+                        }
+                        window.__downls10VisitedColorTimer = setTimeout(function() {
+                            window.__downls10VisitedColorTimer = null;
+                            styleResults();
+                        }, 80);
                     }
 
                     styleResults();
 
+                    // محركات البحث الحديثة تغيّر class/style للنتائج بعد تحميلها.
+                    // نراقب إضافة النتائج وتغييرات style/class حتى لا يعود الرابط المزور
+                    // إلى اللون الأصلي بعد أن نلوّنه.
                     if (!window.__downls10VisitedColorObserver) {
-                        window.__downls10VisitedColorObserver = true;
-                        var timer = null;
-                        var rerun = function() {
-                            clearTimeout(timer);
-                            timer = setTimeout(styleResults, 120);
-                        };
-                        new MutationObserver(rerun).observe(document.documentElement, {
-                            childList: true, subtree: true
+                        window.__downls10VisitedColorObserver = new MutationObserver(function() {
+                            scheduleStyle();
                         });
+
+                        window.__downls10VisitedColorObserver.observe(document.documentElement, {
+                            childList: true,
+                            attributes: true,
+                            attributeFilter: ['class', 'style'],
+                            subtree: true
+                        });
+
                         window.addEventListener('pageshow', styleResults);
+
+                        // عدة محاولات قصيرة لأن بعض محركات البحث ترسم النتائج على مراحل.
+                        [150, 400, 800, 1500, 3000].forEach(function(delay) {
+                            setTimeout(styleResults, delay);
+                        });
                     }
                 } catch (e) {}
             })($quotedUrlsJson, $quotedHostsJson);
