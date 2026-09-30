@@ -82,11 +82,15 @@ class BrowserActivity : Activity() {
         private const val SEARCH_SEARXNG = "searxng"
         private const val SEARCH_CUSTOM = "custom"
         private const val SEARCH_GOOGLE = "google"
+        private const val SEARCH_VIDEO = "video"
         private const val CUSTOM_SEARCH_URL_KEY = "customSearchUrl"
         private const val SEARXNG_SEARCH_BASE = "https://searx.ononoki.org/search?q="
         // SearXNG bang modifiers explicitly select non-Bing web engines.
         // SearXNG's ! syntax is inclusive, so Bing is not selected here.
         private const val SEARXNG_ENGINE_PREFIX = "!ddg !br !qw !yh "
+        // محركات الفيديو مدمجة داخل خيار "بحث فيديو" ولا تظهر في واجهة اختيار البحث.
+        // يتم تمريرها إلى SearXNG كـ bang modifiers ليجمع نتائجها في صفحة واحدة.
+        private const val VIDEO_SEARCH_ENGINE_PREFIX = "!google !bing !brave !youtube !peertube !dailymotion !odysee !qwant !duckduckgo !kagi "
     }
 
     private lateinit var webViewContainer: FrameLayout
@@ -1547,6 +1551,7 @@ class BrowserActivity : Activity() {
         val encoded = Uri.encode(query)
         return when (selectedSearchProvider()) {
             SEARCH_SEARXNG -> SEARXNG_SEARCH_BASE + Uri.encode(SEARXNG_ENGINE_PREFIX + query)
+            SEARCH_VIDEO -> SEARXNG_SEARCH_BASE + Uri.encode(VIDEO_SEARCH_ENGINE_PREFIX + query)
             SEARCH_CUSTOM -> {
                 val template = customSearchTemplate()
                 if (template.isBlank()) {
@@ -1640,7 +1645,8 @@ class BrowserActivity : Activity() {
         val providers = arrayOf(
             SEARCH_SEARXNG to "بحث SearXNG",
             SEARCH_CUSTOM to "بحث مخصص",
-            SEARCH_GOOGLE to "Google"
+            SEARCH_GOOGLE to "Google",
+            SEARCH_VIDEO to "بحث فيديو"
         )
         val selected = selectedSearchProvider()
         val items = providers.map { (id, label) ->
