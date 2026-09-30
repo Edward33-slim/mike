@@ -90,7 +90,7 @@ class BrowserActivity : Activity() {
         private const val SEARXNG_ENGINE_PREFIX = "!ddg !br !qw !yh "
         // محركات الفيديو مدمجة داخل خيار "بحث فيديو" ولا تظهر في واجهة اختيار البحث.
         // يتم تمريرها إلى SearXNG كـ bang modifiers ليجمع نتائجها في صفحة واحدة.
-        private const val VIDEO_SEARCH_ENGINE_PREFIX = "!google !bing !brave !youtube !peertube !dailymotion !odysee !qwant !duckduckgo !kagi "
+        private const val VIDEO_SEARCH_ENGINE_PREFIX = "!gov !biv !brvid !yt !ptb !dm !od !qwv !ddv !kgv "
     }
 
     private lateinit var webViewContainer: FrameLayout
