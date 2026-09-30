@@ -1611,7 +1611,7 @@ class BrowserActivity : Activity() {
             "تنزيل",
             if (hideMedia) "إظهار الوسائط" else "إخفاء الوسائط بالكامل",
             "العلامات المرجعية",
-            if (currentTab().desktopMode) "عرض الجوال (لهذا التبويب)" else "عرض سطح المكتب (لهذا التبويب)",
+            if (currentTab().desktopMode) "عرض الجوال" else "عرض سطح المكتب",
             "مانع الإعلانات وحماية التصفح",
             "تكبير/تصغير الخط",
             "السجل",
@@ -1658,9 +1658,13 @@ class BrowserActivity : Activity() {
             .setItems(items) { dialog, which ->
                 val provider = providers[which].first
                 if (provider == SEARCH_CUSTOM) {
-                    saveSearchProvider(provider)
+                    // لا نختار البحث المخصص فعليًا إلا بعد حفظ رابط صالح.
+                    // هذا يمنع بقاء التطبيق على "بحث مخصص" بدون إعداد، ثم ظهور
+                    // رسالة "البحث المخصص غير مهيأ بعد" عند البحث.
                     dialog.dismiss()
-                    showCustomSearchDialog()
+                    showCustomSearchDialog {
+                        saveSearchProvider(SEARCH_CUSTOM)
+                    }
                 } else {
                     saveSearchProvider(provider)
                     dialog.dismiss()
@@ -1670,7 +1674,7 @@ class BrowserActivity : Activity() {
             .show()
     }
 
-    private fun showCustomSearchDialog() {
+    private fun showCustomSearchDialog(onSaved: (() -> Unit)? = null) {
         val input = EditText(this).apply {
             setSingleLine(true)
             setText(customSearchTemplate())
@@ -1678,27 +1682,47 @@ class BrowserActivity : Activity() {
             setPadding(24, 16, 24, 16)
         }
 
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("إعداد البحث المخصص")
             .setMessage(
                 "ضع رابط البحث الذي يحتوي على {query} أو {q} أو %s مكان كلمة البحث. " +
                     "مثال: https://example.com/search?q={query}"
             )
             .setView(input)
-            .setPositiveButton("حفظ") { _, _ ->
-                val template = input.text.toString().trim()
-                if (template.isBlank()) {
-                    saveCustomSearchTemplate("")
-                    Toast.makeText(this, "تم مسح إعداد البحث المخصص", Toast.LENGTH_SHORT).show()
-                } else if (!template.startsWith("http://") && !template.startsWith("https://")) {
-                    Toast.makeText(this, "يجب أن يبدأ رابط البحث بـ http:// أو https://", Toast.LENGTH_LONG).show()
-                } else {
-                    saveCustomSearchTemplate(template)
-                    Toast.makeText(this, "تم حفظ البحث المخصص", Toast.LENGTH_SHORT).show()
-                }
-            }
+            .setPositiveButton("حفظ", null)
             .setNegativeButton("إلغاء", null)
-            .show()
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val template = input.text.toString().trim()
+
+                if (template.isBlank()) {
+                    Toast.makeText(
+                        this,
+                        "أدخل رابط البحث أولًا",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@setOnClickListener
+                }
+
+                if (!template.startsWith("http://") && !template.startsWith("https://")) {
+                    Toast.makeText(
+                        this,
+                        "يجب أن يبدأ رابط البحث بـ http:// أو https://",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    return@setOnClickListener
+                }
+
+                saveCustomSearchTemplate(template)
+                onSaved?.invoke()
+                Toast.makeText(this, "تم حفظ البحث المخصص", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+        }
+
+        dialog.show()
     }
 
     // ---------------- الأذونات: كاميرا / ميكروفون / موقع ----------------
