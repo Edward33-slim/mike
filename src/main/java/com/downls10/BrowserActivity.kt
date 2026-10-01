@@ -82,9 +82,21 @@ class BrowserActivity : Activity() {
         private const val SEARCH_SEARXNG = "searxng"
         private const val SEARCH_CUSTOM = "custom"
         private const val SEARCH_GOOGLE = "google"
+        private const val SEARCH_METAGER = "metager"
+        private const val SEARCH_4GET = "4get"
+        private const val SEARCH_LIBREY = "librey"
+        private const val SEARCH_MOJEEK = "mojeek"
+        private const val SEARCH_BRAVE = "brave"
+        private const val SEARCH_YACY = "yacy"
         private const val SEARCH_VIDEO = "video"
         private const val CUSTOM_SEARCH_URL_KEY = "customSearchUrl"
         private const val SEARXNG_SEARCH_BASE = "https://searx.ononoki.org/search?q="
+        private const val METAGER_SEARCH_BASE = "https://metager.org/meta/meta.ger3?eingabe="
+        private const val FOURGET_SEARCH_BASE = "https://4get.ca/web?s="
+        private const val LIBREY_SEARCH_BASE = "https://librey.org/search.php?q="
+        private const val MOJEEK_SEARCH_BASE = "https://www.mojeek.com/search?q="
+        private const val BRAVE_SEARCH_BASE = "https://search.brave.com/search?q="
+        private const val YACY_SEARCH_BASE = "https://yacy.searchlab.eu/yacysearch.html?query="
         // SearXNG bang modifiers explicitly select non-Bing web engines.
         // SearXNG's ! syntax is inclusive, so Bing is not selected here.
         private const val SEARXNG_ENGINE_PREFIX = "!ddg !br !qw !yh "
@@ -1563,6 +1575,12 @@ class BrowserActivity : Activity() {
         return when (selectedSearchProvider()) {
             SEARCH_SEARXNG -> SEARXNG_SEARCH_BASE + Uri.encode(SEARXNG_ENGINE_PREFIX + query)
             SEARCH_VIDEO -> SEARXNG_SEARCH_BASE + Uri.encode(VIDEO_SEARCH_ENGINE_PREFIX + query)
+            SEARCH_METAGER -> METAGER_SEARCH_BASE + encoded
+            SEARCH_4GET -> FOURGET_SEARCH_BASE + encoded
+            SEARCH_LIBREY -> LIBREY_SEARCH_BASE + encoded
+            SEARCH_MOJEEK -> MOJEEK_SEARCH_BASE + encoded
+            SEARCH_BRAVE -> BRAVE_SEARCH_BASE + encoded
+            SEARCH_YACY -> YACY_SEARCH_BASE + encoded
             SEARCH_CUSTOM -> {
                 val template = customSearchTemplate()
                 if (template.isBlank()) {
@@ -1659,6 +1677,12 @@ class BrowserActivity : Activity() {
             SEARCH_SEARXNG to "بحث SearXNG",
             SEARCH_CUSTOM to "بحث مخصص",
             SEARCH_GOOGLE to "Google",
+            SEARCH_METAGER to "MetaGer",
+            SEARCH_4GET to "4get",
+            SEARCH_LIBREY to "LibreY",
+            SEARCH_MOJEEK to "Mojeek",
+            SEARCH_BRAVE to "Brave Search",
+            SEARCH_YACY to "YaCy",
             SEARCH_VIDEO to "بحث فيديو"
         )
         val selected = selectedSearchProvider()
