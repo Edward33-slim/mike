@@ -1500,10 +1500,8 @@ class BrowserActivity : Activity() {
             }
         }
 
-        if (uri?.scheme == "http") {
-            Toast.makeText(this, "⚠️ هذا الموقع غير آمن (اتصال HTTP غير مشفّر)", Toast.LENGTH_SHORT).show()
-        }
-
+        // السماح بفتح روابط HTTP بشكل طبيعي بدون رسالة تحذير تمنع/تربك المستخدم.
+        // لا يتم تحويل HTTP إلى HTTPS هنا؛ يجب تحميل العنوان الذي أدخله المستخدم كما هو.
         loadAndRecord(webView, rawUrl)
     }
 
