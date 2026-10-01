@@ -116,6 +116,9 @@ class BrowserActivity : Activity() {
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private var pendingBookmarkExportContent: String? = null
     private var lastConfirmedSafetyUrl: String? = null
+    // المواقع التي وافق المستخدم على فتحها خلال جلسة المتصفح؛
+    // يسمح ذلك بالتحويلات داخل نفس الموقع بعد الضغط على "متابعة" دون إعادة التحذير.
+    private val confirmedSafetyHosts = mutableSetOf<String>()
     private val bgExecutor = Executors.newFixedThreadPool(2)
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -1420,7 +1423,8 @@ class BrowserActivity : Activity() {
         return h.contains("modapk") ||
             h.contains("apkmod") ||
             h.contains("mod-cda") ||
-            h.contains("modcda")
+            h.contains("modcda") ||
+            (h.contains("mod") && h.contains("apk"))
     }
 
     private fun navigateWithSafetyCheck(webView: WebView, rawUrl: String) {
@@ -1455,7 +1459,13 @@ class BrowserActivity : Activity() {
         val host = uri?.host
 
         if (host != null) {
-            val normalizedHost = host.lowercase(Locale.US).removePrefix("www.")
+            val normalizedHost = host.lowercase(Locale.US).removePrefix("www.").removeSuffix(".")
+            // بعد موافقة المستخدم، اسمح بالتنقلات والتحويلات داخل نفس الموقع خلال الجلسة.
+            if (confirmedSafetyHosts.contains(normalizedHost)) {
+                loadAndRecord(webView, rawUrl)
+                return
+            }
+
             val match = AdBlocker.matchSafetyCategory(this, host)
             val modApkWarning = isModApkWarningHost(normalizedHost)
 
@@ -1492,6 +1502,9 @@ class BrowserActivity : Activity() {
                     )
                     .setPositiveButton("متابعة") { _, _ ->
                         lastConfirmedSafetyUrl = rawUrl
+                        if (!normalizedHost.isBlank()) {
+                            confirmedSafetyHosts.add(normalizedHost)
+                        }
                         loadAndRecord(webView, rawUrl)
                     }
                     .setNegativeButton("رفض", null)
@@ -1582,7 +1595,9 @@ class BrowserActivity : Activity() {
             input.contains(" ") || !input.contains(".") -> {
                 val searchUrl = buildSearchUrl(input)
                 if (searchUrl.isBlank()) {
-                    Toast.makeText(this, "البحث المخصص غير مهيأ بعد", Toast.LENGTH_SHORT).show()
+                    // إذا اختار المستخدم "بحث مخصص" ولم يضبط الرابط بعد،
+                    // افتح إعداد البحث مباشرةً بدل إظهار رسالة ثم ترك البحث بلا نتيجة.
+                    showCustomSearchDialog()
                     return
                 }
                 searchUrl
@@ -1713,6 +1728,8 @@ class BrowserActivity : Activity() {
                 }
 
                 saveCustomSearchTemplate(template)
+                // يبقى "بحث مخصص" هو المزود الافتراضي بعد حفظ الرابط.
+                saveSearchProvider(SEARCH_CUSTOM)
                 onSaved?.invoke()
                 Toast.makeText(this, "تم حفظ البحث المخصص", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
