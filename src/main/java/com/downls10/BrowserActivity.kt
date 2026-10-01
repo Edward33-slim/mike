@@ -808,7 +808,9 @@ class BrowserActivity : Activity() {
         settings.blockNetworkImage = false
         settings.builtInZoomControls = true
         settings.displayZoomControls = false
-        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        // السماح بتصفح HTTP وHTTPS معًا، بما في ذلك صفحات HTTPS التي تحتوي على موارد HTTP.
+        // هذا مهم لصفحات الراوتر والأجهزة المحلية التي تعمل عبر HTTP فقط.
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
         // النوافذ الجديدة تصل إلى onCreateWindow (مع نافذة التأكيد) فقط عند ضغط المستخدم؛
         // ما تفتحه الصفحة من نفسها بدون ضغط يبقى محجوبًا.
         settings.setSupportMultipleWindows(true)
@@ -1458,13 +1460,19 @@ class BrowserActivity : Activity() {
 
         val uri = try { Uri.parse(rawUrl) } catch (e: Exception) { null }
 
-        // رابط مخصص (غير http/https): افتح التطبيق المثبّت إذا قدر يتعامل معه، وإلا تجاهله بهدوء
+        // HTTP وHTTPS كلاهما روابط ويب صالحة داخل المتصفح، ولا نحولهما إلى بروتوكول آخر.
+        // الروابط الأخرى (مثل intent:// وtel:) تذهب للتطبيق الخارجي المناسب.
         if (uri?.scheme != null && uri.scheme != "http" && uri.scheme != "https") {
             openExternalAppLink(webView, rawUrl, uri)
             return
         }
 
-        val host = uri?.host
+        val scheme = uri?.scheme?.lowercase(Locale.ROOT)
+        if (scheme != "http" && scheme != "https") {
+            return
+        }
+
+        val host = uri.host
 
         if (host != null) {
             val normalizedHost = host.lowercase(Locale.US).removePrefix("www.").removeSuffix(".")
