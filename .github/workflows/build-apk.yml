@@ -48,3 +48,5 @@ jobs:
           name: DownLS10-debug-apk
           path: build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+# retrigger build after Kotlin compile fix
