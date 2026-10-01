@@ -5,6 +5,7 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Build current main revision after browser fixes.
 permissions:
   contents: read
 
