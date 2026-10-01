@@ -1582,17 +1582,44 @@ class BrowserActivity : Activity() {
         }
     }
 
+    /**
+     * عناوين الشبكة المحلية (خصوصًا صفحات إعدادات الراوتر) غالبًا تعمل عبر HTTP فقط.
+     * إذا كتب المستخدم العنوان بدون البروتوكول، لا نحوله تلقائيًا إلى HTTPS؛
+     * وإلا سيظهر ERR_CONNECTION_REFUSED على أجهزة راوتر لا توفر HTTPS.
+     */
+    private fun isLocalNetworkAddress(input: String): Boolean {
+        val host = input.substringBefore("/").substringBefore(":").lowercase(Locale.ROOT)
+        if (host == "localhost" || host.endsWith(".local") || host.endsWith(".lan") || host.endsWith(".home.arpa")) {
+            return true
+        }
+
+        val parts = host.split('.')
+        if (parts.size != 4 || parts.any { it.isEmpty() || it.any { ch -> !ch.isDigit() } }) return false
+
+        val octets = parts.mapNotNull { it.toIntOrNull() }
+        if (octets.size != 4 || octets.any { it !in 0..255 }) return false
+
+        return octets[0] == 10 ||
+            (octets[0] == 192 && octets[1] == 168) ||
+            (octets[0] == 172 && octets[1] in 16..31) ||
+            (octets[0] == 127)
+    }
+
     private fun loadFromAddressBar() {
         var input = editUrl.text.toString().trim()
         if (input.isEmpty()) return
 
         input = when {
-            Patterns.WEB_URL.matcher(input).matches() && !input.startsWith("http") -> "https://$input"
+            Patterns.WEB_URL.matcher(input).matches() && !input.startsWith("http") -> {
+                if (isLocalNetworkAddress(input)) "http://$input" else "https://$input"
+            }
             input.contains(" ") || !input.contains(".") -> {
                 val searchUrl = buildSearchUrl(input)
                 searchUrl
             }
-            !input.startsWith("http://") && !input.startsWith("https://") -> "https://$input"
+            !input.startsWith("http://") && !input.startsWith("https://") -> {
+                if (isLocalNetworkAddress(input)) "http://$input" else "https://$input"
+            }
             else -> input
         }
 
