@@ -1658,13 +1658,12 @@ class BrowserActivity : Activity() {
             .setItems(items) { dialog, which ->
                 val provider = providers[which].first
                 if (provider == SEARCH_CUSTOM) {
-                    // لا نختار البحث المخصص فعليًا إلا بعد حفظ رابط صالح.
-                    // هذا يمنع بقاء التطبيق على "بحث مخصص" بدون إعداد، ثم ظهور
-                    // رسالة "البحث المخصص غير مهيأ بعد" عند البحث.
+                    // اختيار "بحث مخصص" يغيّر المزود الافتراضي فورًا،
+                    // ثم تفتح نافذة إعداد الرابط لتكوينه أو تعديله.
+                    // لا يعتمد اختيار المزود على الضغط على "حفظ".
+                    saveSearchProvider(SEARCH_CUSTOM)
                     dialog.dismiss()
-                    showCustomSearchDialog {
-                        saveSearchProvider(SEARCH_CUSTOM)
-                    }
+                    showCustomSearchDialog()
                 } else {
                     saveSearchProvider(provider)
                     dialog.dismiss()
