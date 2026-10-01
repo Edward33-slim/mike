@@ -87,6 +87,7 @@ class BrowserActivity : Activity() {
         private const val SEARCH_MOJEEK = "mojeek"
         private const val SEARCH_BRAVE = "brave"
         private const val SEARCH_YACY = "yacy"
+        private const val SEARCH_BING = "bing"
         private const val SEARCH_VIDEO = "video"
         private const val SEARXNG_SEARCH_BASE = "https://searx.ononoki.org/search?q="
         private const val METAGER_SEARCH_BASE = "https://metager.org/meta/meta.ger3?eingabe="
@@ -95,6 +96,7 @@ class BrowserActivity : Activity() {
         private const val MOJEEK_SEARCH_BASE = "https://www.mojeek.com/search?q="
         private const val BRAVE_SEARCH_BASE = "https://search.brave.com/search?q="
         private const val YACY_SEARCH_BASE = "https://yacy.searchlab.eu/yacysearch.html?query="
+        private const val BING_SEARCH_BASE = "https://www.bing.com/search?q="
         // SearXNG bang modifiers explicitly select non-Bing web engines.
         // SearXNG's ! syntax is inclusive, so Bing is not selected here.
         private const val SEARXNG_ENGINE_PREFIX = "!ddg !br !qw !yh "
@@ -1575,6 +1577,7 @@ class BrowserActivity : Activity() {
             SEARCH_MOJEEK -> MOJEEK_SEARCH_BASE + encoded
             SEARCH_BRAVE -> BRAVE_SEARCH_BASE + encoded
             SEARCH_YACY -> YACY_SEARCH_BASE + encoded
+            SEARCH_BING -> BING_SEARCH_BASE + encoded
             else -> "https://www.google.com/search?q=" + encoded
         }
     }
@@ -1651,6 +1654,7 @@ class BrowserActivity : Activity() {
             SEARCH_MOJEEK to "Mojeek",
             SEARCH_BRAVE to "Brave Search",
             SEARCH_YACY to "YaCy",
+            SEARCH_BING to "Bing",
             SEARCH_VIDEO to "بحث فيديو"
         )
         val selected = selectedSearchProvider()
