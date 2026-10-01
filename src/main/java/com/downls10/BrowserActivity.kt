@@ -115,6 +115,7 @@ class BrowserActivity : Activity() {
 
     private var hideMedia = false
     private var nightMode = false
+    private var lastNightInject: Long = 0L
     private var mobileUA: String = ""
     private val desktopUA =
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
